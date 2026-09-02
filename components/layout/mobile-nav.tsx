@@ -1,22 +1,26 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { navLinks } from "@/lib/data";
 import { signOut } from "@/app/auth/actions";
 import { Button } from "@/components/ui/button";
 
+const publicLinks = [
+  { label: "Product", href: "/" },
+  { label: "Workspace", href: "/dashboard/agents/recruitos" },
+];
+
 const dashboardLinks = [
-  { label: "Overview", href: "/dashboard" },
-  { label: "RecruitOS", href: "/dashboard/agents/recruitos" },
+  { label: "Workspace", href: "/dashboard/agents/recruitos" },
   { label: "Jobs", href: "/dashboard/agents/recruitos/jobs" },
   { label: "Candidates", href: "/dashboard/agents/recruitos/candidates" },
+  { label: "Analyze", href: "/dashboard/agents/recruitos/analyze" },
 ];
 
 export function MobileNav({ isAuthenticated = false, dashboard = false }: { isAuthenticated?: boolean; dashboard?: boolean }) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
-  const links = dashboard ? dashboardLinks : navLinks;
+  const links = dashboard ? dashboardLinks : publicLinks;
 
   useEffect(() => {
     if (!open) return;

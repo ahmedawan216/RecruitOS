@@ -1,6 +1,11 @@
-import { footerLinks } from "@/lib/data";
 import { siteConfig } from "@/lib/site-config";
 import { Logo } from "@/components/ui/logo";
+
+const footerLinks = [
+  { label: "Product", href: "/" },
+  { label: "Sign in", href: "/sign-in" },
+  { label: "Create account", href: "/sign-up" },
+];
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -25,18 +30,7 @@ export function Footer() {
           ))}
         </nav>
 
-        <div className="text-right">
-          <a
-            href="mailto:hello@operationos.org"
-            className="mb-3 block text-sm text-ink hover:text-ink-dim transition-colors"
-          >
-            operationos.org@gmail.com
-          </a>
-
-          <p className="text-xs text-ink-dim">
-            © {year} {siteConfig.name}
-          </p>
-        </div>
+        <p className="text-xs text-ink-dim">© {year} {siteConfig.name}</p>
       </div>
     </footer>
   );

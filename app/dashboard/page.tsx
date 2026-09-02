@@ -6,23 +6,23 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-[1200px] px-6 pb-24">
         <section className="mb-16">
           <p className="mb-4 font-mono text-[11px] tracking-[0.08em] text-ink-dim">
-            OPERATIONOS COMMAND CENTER
+            RECRUITOS WORKSPACE
           </p>
 
           <h1 className="font-display text-[clamp(32px,5vw,56px)] font-semibold leading-[1.05] tracking-[-0.025em] text-ink">
-            Your AI employees.
+            Your recruiting command center.
           </h1>
 
           <p className="mt-4 max-w-[560px] text-[15px] leading-[1.6] text-ink-dim">
-            Manage your AI workforce, monitor their activity, and stay in
-            control of every decision they make.
+            Analyze resumes, manage candidates, and stay in control of every
+            hiring decision.
           </p>
         </section>
 
         <section>
           <div className="mb-5">
             <p className="font-mono text-[11px] tracking-[0.08em] text-ink-dim">
-              YOUR AGENTS
+              YOUR WORKSPACE
             </p>
           </div>
 
@@ -61,45 +61,6 @@ export default function DashboardPage() {
               </div>
             </Link>
 
-            <div className="rounded-xl border border-dashed border-border p-6 opacity-60">
-              <div className="mb-8 flex h-11 w-11 items-center justify-center rounded-lg border border-border font-mono text-sm text-ink-dim">
-                002
-              </div>
-
-              <h2 className="font-display text-xl font-semibold text-ink-dim">
-                SalesOS
-              </h2>
-
-              <p className="mt-2 text-sm leading-[1.6] text-ink-dim">
-                Your next AI employee. Currently being trained.
-              </p>
-
-              <div className="mt-7 border-t border-border pt-4">
-                <span className="font-mono text-[10px] tracking-[0.05em] text-ink-dim">
-                  COMING SOON
-                </span>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-dashed border-border p-6 opacity-60">
-              <div className="mb-8 flex h-11 w-11 items-center justify-center rounded-lg border border-border font-mono text-sm text-ink-dim">
-                003
-              </div>
-
-              <h2 className="font-display text-xl font-semibold text-ink-dim">
-                SupportOS
-              </h2>
-
-              <p className="mt-2 text-sm leading-[1.6] text-ink-dim">
-                Your next AI employee. Currently being trained.
-              </p>
-
-              <div className="mt-7 border-t border-border pt-4">
-                <span className="font-mono text-[10px] tracking-[0.05em] text-ink-dim">
-                  COMING SOON
-                </span>
-              </div>
-            </div>
           </div>
         </section>
       </div>

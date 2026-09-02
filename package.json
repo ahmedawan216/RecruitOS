@@ -1,8 +1,8 @@
 {
-  "name": "operationos-web",
+  "name": "recruitos",
   "version": "1.0.0",
   "private": true,
-  "description": "Official marketing website for OperationOS.ai - the operating system for AI employees.",
+  "description": "RecruitOS AI-assisted recruiting workspace.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,25 +11,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hookform/resolvers": "3.9.1",
-    "@radix-ui/react-dialog": "1.1.4",
-    "@radix-ui/react-label": "2.1.1",
     "@radix-ui/react-slot": "1.1.1",
     "@supabase/supabase-js": "^2.110.2",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
-    "framer-motion": "11.15.0",
     "lucide-react": "0.469.0",
     "next": "15.5.20",
     "openai": "^6.48.0",
     "posthog-js": "^1.404.0",
-    "posthog-node": "^5.45.2",
     "react": "^19.0.0",
     "react-dom": "19.0.0",
-    "react-hook-form": "7.54.2",
-    "resend": "^6.17.2",
     "server-only": "^0.0.1",
     "tailwind-merge": "2.5.5",
     "unpdf": "^1.6.2",
@@ -37,7 +30,6 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.2.0",
-    "@tailwindcss/typography": "^0.5.20",
     "@types/node": "22.10.2",
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
@@ -46,7 +38,6 @@
     "eslint-config-next": "15.5.20",
     "postcss": "8.4.49",
     "tailwindcss": "3.4.17",
-    "tailwindcss-animate": "1.0.7",
     "typescript": "5.7.2"
   },
   "engines": {

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     description:
       "Analyze resumes, understand candidate fit, and spend less time on manual screening.",
     url: "/recruitos",
-    siteName: "OperationOS.org",
+    siteName: "RecruitOS",
     type: "website",
     images: [
       {

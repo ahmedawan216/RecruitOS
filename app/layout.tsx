@@ -4,8 +4,6 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PostHogProvider } from "@/components/providers/posthog-provider";
 import { siteConfig } from "@/lib/site-config";
-import { JsonLd } from "@/components/seo/json-ld";
-import { FeedbackWidget } from "@/components/ui/feedback-widget";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 
@@ -38,60 +36,30 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.url),
-
+  metadataBase: siteConfig.url ? new URL(siteConfig.url) : undefined,
   title: {
     default: siteConfig.title,
-    template: "%s | OperationOS.org",
+    template: "%s | RecruitOS",
   },
-
   description: siteConfig.description,
-
   keywords: [
-    "AI employees",
-    "AI workforce",
+    "RecruitOS",
     "AI recruiting",
     "AI hiring",
-    "RecruitOS",
     "resume screening",
     "candidate matching",
-    "AI recruitment software",
-    "AI HR software",
-    "LLM recruiting",
-    "AI automation",
+    "recruitment software",
   ],
-
-  alternates: {
-    canonical: "/",
-  },
-
   openGraph: {
-    title: "OperationOS.org — The Operating System for AI Employees",
-    description:
-      "OperationOS helps businesses automate work with AI employees. RecruitOS is our first AI hiring employee that screens resumes, matches candidates, and accelerates recruitment.",
-    url: "https://operationos.org/",
-    siteName: "OperationOS.org",
-    images: [
-      {
-        url: "https://operationos.org/images/og-image-v2.png",
-        width: 1200,
-        height: 630,
-        alt: "OperationOS.org — The Operating System for AI Employees",
-      },
-    ],
+    title: siteConfig.title,
+    description: siteConfig.description,
+    siteName: siteConfig.name,
     type: "website",
   },
-
   twitter: {
     card: "summary_large_image",
-    title: "OperationOS.org — The Operating System for AI Employees",
-    description:
-      "OperationOS helps businesses automate work with AI employees.",
-    images: ["https://operationos.org/images/og-image-v2.png"],
-  },
-
-  icons: {
-    icon: "https://operationos.org/favicon.svg",
+    title: siteConfig.title,
+    description: siteConfig.description,
   },
 };
 
@@ -129,8 +97,6 @@ export default function RootLayout({
 
         <Footer />
 
-        <JsonLd />
-        <FeedbackWidget />
         <Analytics />
         <SpeedInsights />
       </body>

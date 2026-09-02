@@ -2,18 +2,22 @@
 
 import { usePathname } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
-import { navLinks } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { useScrolled } from "@/hooks/use-scrolled";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
 
+const publicLinks = [
+  { label: "Product", href: "/" },
+  { label: "Workspace", href: "/dashboard/agents/recruitos" },
+];
+
 const dashboardLinks = [
-  { label: "Overview", href: "/dashboard" },
-  { label: "RecruitOS", href: "/dashboard/agents/recruitos" },
+  { label: "Workspace", href: "/dashboard/agents/recruitos" },
   { label: "Jobs", href: "/dashboard/agents/recruitos/jobs" },
   { label: "Candidates", href: "/dashboard/agents/recruitos/candidates" },
+  { label: "Analyze", href: "/dashboard/agents/recruitos/analyze" },
 ];
 
 export function HeaderClient({
@@ -35,7 +39,7 @@ export function HeaderClient({
     return null;
   }
 
-  const links = dashboard ? dashboardLinks : navLinks;
+  const links = dashboard ? dashboardLinks : publicLinks;
 
   return (
     <header
@@ -51,7 +55,7 @@ export function HeaderClient({
         <div className="flex min-w-0 shrink-0 items-center gap-4 sm:gap-5">
           <Logo />
           {dashboard && <span className="hidden h-5 w-px bg-border md:block" aria-hidden="true" />}
-          {dashboard && <span className="hidden font-mono text-[10px] tracking-[0.08em] text-accent md:block">RECRUITOS</span>}
+          {dashboard && <span className="hidden font-mono text-[10px] tracking-[0.08em] text-accent md:block">WORKSPACE</span>}
         </div>
 
         <div className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex">
@@ -86,9 +90,14 @@ export function HeaderClient({
               <Button type="submit" variant="ghost" size="sm">Sign out</Button>
             </form>
           ) : (
-            <Button asChild variant="ghost" size="sm" className="hidden lg:inline-flex">
-              <a href="/sign-in">Sign in</a>
-            </Button>
+            <>
+              <Button asChild variant="ghost" size="sm" className="hidden lg:inline-flex">
+                <a href="/sign-in">Sign in</a>
+              </Button>
+              <Button asChild size="sm" className="hidden lg:inline-flex">
+                <a href="/sign-up">Create account</a>
+              </Button>
+            </>
           )}
           <MobileNav isAuthenticated={isAuthenticated} dashboard={dashboard} />
         </div>

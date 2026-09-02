@@ -124,7 +124,7 @@ export function AuthForm({ mode, next = "/dashboard" }: { mode: "sign-in" | "sig
       <SubmitButton label={mode === "sign-in" ? "Sign in" : "Create account"} />
 
       <p className="text-center text-sm text-ink-dim">
-        {mode === "sign-in" ? "New to OperationOS? " : "Already have an account? "}
+        {mode === "sign-in" ? "New to RecruitOS? " : "Already have an account? "}
         <Link
           href={mode === "sign-in" ? "/sign-up" : "/sign-in"}
           className="text-accent transition-opacity hover:opacity-80"
