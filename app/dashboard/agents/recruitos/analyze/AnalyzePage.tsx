@@ -161,6 +161,7 @@ export default function RecruitOSAnalyzePage({
             </div>
 
             <form action={formAction}>
+              <input type="hidden" name="jobId" value={jobId} />
               <input
                 type="file"
                 name="resume"
@@ -186,6 +187,15 @@ export default function RecruitOSAnalyzePage({
                 className="mt-5 text-sm text-red-400"
               >
                 {state.error}
+              </p>
+            )}
+
+            {state.candidateWarning && (
+              <p
+                role="status"
+                className="mt-5 text-sm text-amber-300"
+              >
+                {state.candidateWarning}
               </p>
             )}
 

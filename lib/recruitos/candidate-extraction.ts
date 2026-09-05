@@ -9,6 +9,13 @@ const GROQ_MODEL = "openai/gpt-oss-120b";
 
 let extractorClient: OpenAI | null = null;
 
+const nullableString = z.string().nullish().transform((value) => value ?? null);
+const nullableNumber = z.number().min(0).nullish().transform((value) => value ?? null);
+const nullableDescription = z
+  .union([z.string(), z.array(z.string()).transform((items) => items.join("\n"))])
+  .nullish()
+  .transform((value) => value ?? null);
+
 function getExtractorClient(): OpenAI {
   if (extractorClient) return extractorClient;
 
@@ -24,31 +31,31 @@ function getExtractorClient(): OpenAI {
 }
 
 const candidateProfileSchema = z.object({
-  fullName: z.string().nullable(),
-  email: z.string().nullable(),
-  phone: z.string().nullable(),
-  location: z.string().nullable(),
-  headline: z.string().nullable(),
+  fullName: nullableString,
+  email: nullableString,
+  phone: nullableString,
+  location: nullableString,
+  headline: nullableString,
   skills: z.array(z.string()),
   experience: z.array(
     z.object({
-      company: z.string().nullable(),
-      title: z.string().nullable(),
-      startDate: z.string().nullable(),
-      endDate: z.string().nullable(),
-      description: z.string().nullable(),
+      company: nullableString,
+      title: nullableString,
+      startDate: nullableString,
+      endDate: nullableString,
+      description: nullableDescription,
     })
   ),
   education: z.array(
     z.object({
-      institution: z.string().nullable(),
-      degree: z.string().nullable(),
-      field: z.string().nullable(),
-      startDate: z.string().nullable(),
-      endDate: z.string().nullable(),
+      institution: nullableString,
+      degree: nullableString,
+      field: nullableString,
+      startDate: nullableString,
+      endDate: nullableString,
     })
   ),
-  yearsExperience: z.number().min(0).nullable(),
+  yearsExperience: nullableNumber,
 });
 
 export type CandidateProfile = z.infer<typeof candidateProfileSchema>;
@@ -80,7 +87,25 @@ export async function extractCandidateProfile(resumeText: string): Promise<Candi
   }
 
   const result = candidateProfileSchema.safeParse(parsed);
-  if (!result.success) throw new Error("The AI provider returned an unexpected candidate profile.");
+  if (!result.success) {
+    const valueAtPath = (path: PropertyKey[]) => path.reduce<unknown>(
+      (value, key) => value && typeof value === "object" ? (value as Record<PropertyKey, unknown>)[key] : undefined,
+      parsed
+    );
+    console.error(
+      "Candidate profile validation failed:",
+      result.error.issues.map((issue) => {
+        const actual = valueAtPath(issue.path);
+        return {
+          path: issue.path.join("."),
+          code: issue.code,
+          expected: "expected" in issue ? issue.expected : undefined,
+          actual: actual === undefined ? "missing" : actual === null ? "null" : Array.isArray(actual) ? "array" : typeof actual,
+        };
+      })
+    );
+    throw new Error("The AI provider returned an unexpected candidate profile.");
+  }
 
   return {
     ...result.data,

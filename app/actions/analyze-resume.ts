@@ -2,6 +2,8 @@
 
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { extractCandidateProfile } from "@/lib/recruitos/candidate-extraction";
+import { upsertCandidateFromProfile } from "@/lib/recruitos/candidates";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -70,6 +72,35 @@ export async function analyzeResume(resumeId: string, jobId: string) {
       return { success: false, error: "Job not found." };
     }
 
+    let candidateId = resume.candidate_id;
+    if (!candidateId) {
+      try {
+        const profile = await extractCandidateProfile(resume.extracted_text);
+        candidateId = await upsertCandidateFromProfile(user.id, profile);
+
+        const { data: linkedResume, error: linkError } = await supabaseAdmin
+          .from("resumes")
+          .update({ candidate_id: candidateId })
+          .eq("id", resumeId)
+          .eq("user_id", user.id)
+          .select("candidate_id")
+          .single();
+
+        if (linkError || linkedResume?.candidate_id !== candidateId) {
+          throw linkError ?? new Error("Candidate association failed.");
+        }
+      } catch (error) {
+        const diagnostic = error instanceof Error
+          ? { name: error.name, message: error.message }
+          : { code: typeof error === "object" && error && "code" in error ? String(error.code) : "unknown" };
+        console.error("Candidate recovery failed during analysis:", diagnostic);
+        return {
+          success: false,
+          error: "RecruitOS could not create or update the candidate profile. Please retry the analysis.",
+        };
+      }
+    }
+
     const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
       model: GROQ_MODEL,
@@ -107,7 +138,7 @@ export async function analyzeResume(resumeId: string, jobId: string) {
     const analysis = validation.data;
     const analysisData = {
       user_id: user.id,
-      candidate_id: resume.candidate_id,
+      candidate_id: candidateId,
       resume_id: resumeId,
       job_id: jobId,
       job_description_text: job.description,
@@ -168,43 +199,54 @@ export async function analyzeResume(resumeId: string, jobId: string) {
       analysisId = data.id;
     }
 
-    if (resume.candidate_id) {
-      const { data: existingMatch } = await supabaseAdmin
-        .from("candidate_job_matches")
-        .select("id, recruiter_status")
-        .eq("candidate_id", resume.candidate_id)
-        .eq("job_id", jobId)
-        .eq("user_id", user.id)
-        .maybeSingle();
+    const { data: existingMatch, error: existingMatchError } = await supabaseAdmin
+      .from("candidate_job_matches")
+      .select("id, recruiter_status")
+      .eq("candidate_id", candidateId)
+      .eq("job_id", jobId)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-      const matchData = {
-        user_id: user.id,
-        candidate_id: resume.candidate_id,
-        job_id: jobId,
-        resume_id: resumeId,
-        latest_analysis_id: analysisId,
-        match_score: Math.round(analysis.matchScore),
-        recommendation: analysis.recommendation,
-        recruiter_status: existingMatch?.recruiter_status ?? "new",
-        updated_at: new Date().toISOString(),
-      };
-
-      if (existingMatch) {
-        await supabaseAdmin.from("candidate_job_matches").update(matchData).eq("id", existingMatch.id).eq("user_id", user.id);
-      } else {
-        await supabaseAdmin.from("candidate_job_matches").insert(matchData);
-      }
-
-      await supabaseAdmin.from("candidate_activity").insert({
-        user_id: user.id,
-        candidate_id: resume.candidate_id,
-        job_id: jobId,
-        type: "analysis_completed",
-        metadata: { analysisId, matchScore: Math.round(analysis.matchScore), recommendation: analysis.recommendation },
-      });
+    if (existingMatchError) {
+      console.error("Candidate match lookup failed after analysis:", { code: existingMatchError.code });
+      return { success: false, error: "RecruitOS could not update the candidate workflow. Please retry the analysis." };
     }
 
-    return { success: true, resumeId, jobId, analysisId, candidateId: resume.candidate_id };
+    const matchData = {
+      user_id: user.id,
+      candidate_id: candidateId,
+      job_id: jobId,
+      resume_id: resumeId,
+      latest_analysis_id: analysisId,
+      match_score: Math.round(analysis.matchScore),
+      recommendation: analysis.recommendation,
+      recruiter_status: existingMatch?.recruiter_status ?? "new",
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: matchError } = existingMatch
+      ? await supabaseAdmin.from("candidate_job_matches").update(matchData).eq("id", existingMatch.id).eq("user_id", user.id)
+      : await supabaseAdmin.from("candidate_job_matches").insert(matchData);
+
+    if (matchError) {
+      console.error("Candidate match persistence failed after analysis:", { code: matchError.code });
+      return { success: false, error: "RecruitOS could not update the candidate workflow. Please retry the analysis." };
+    }
+
+    const { error: activityError } = await supabaseAdmin.from("candidate_activity").insert({
+      user_id: user.id,
+      candidate_id: candidateId,
+      job_id: jobId,
+      type: "analysis_completed",
+      metadata: { analysisId, matchScore: Math.round(analysis.matchScore), recommendation: analysis.recommendation },
+    });
+
+    if (activityError) {
+      console.error("Candidate activity persistence failed after analysis:", { code: activityError.code });
+      return { success: false, error: "RecruitOS could not update the candidate workflow. Please retry the analysis." };
+    }
+
+    return { success: true, resumeId, jobId, analysisId, candidateId };
   } catch (error) {
     if (error instanceof Error && error.message === "AUTH_REQUIRED") {
       return { success: false, error: "Please sign in to analyze a resume." };
