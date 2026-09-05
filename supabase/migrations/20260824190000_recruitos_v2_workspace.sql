@@ -43,8 +43,9 @@ where lifecycle_status = 'open';
 -- Preserve V1 data when a reliable email address can be extracted. No synthetic
 -- names are invented; rows without a usable email remain available through V1.
 -- regexp_match() returns a text[]; [1] extracts the actual email string.
+-- Group by the normalized value so case variants produce one candidate per user.
 insert into public.candidates (user_id, email, normalized_email)
-select r.user_id, m.email, lower(m.email)
+select r.user_id, min(m.email), lower(m.email)
 from public.resumes r
 cross join lateral (
   select (regexp_match(
@@ -61,22 +62,28 @@ where r.user_id is not null
     where c.user_id = r.user_id
       and c.normalized_email = lower(m.email)
   )
-group by r.user_id, m.email;
+group by r.user_id, lower(m.email);
 
+with resume_emails as (
+  select
+    r.id as resume_id,
+    r.user_id,
+    (regexp_match(
+      r.extracted_text,
+      '([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,})'
+    ))[1] as email
+  from public.resumes r
+  where r.candidate_id is null
+    and r.extracted_text is not null
+)
 update public.resumes r
 set candidate_id = c.id
-from public.candidates c
-cross join lateral (
-  select (regexp_match(
-    r.extracted_text,
-    '([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,})'
-  ))[1] as email
-) m
-where r.candidate_id is null
-  and r.user_id = c.user_id
-  and r.extracted_text is not null
-  and m.email is not null
-  and c.normalized_email = lower(m.email);
+from resume_emails m
+join public.candidates c
+  on c.user_id = m.user_id
+  and c.normalized_email = lower(m.email)
+where r.id = m.resume_id
+  and m.email is not null;
 
 update public.resume_analyses a
 set candidate_id = r.candidate_id
