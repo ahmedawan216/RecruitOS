@@ -31,7 +31,9 @@ const config: Config = {
 
         // Status
         success: "var(--color-success)",
+        warning: "var(--color-warning)",
         danger: "var(--color-danger)",
+        info: "var(--color-info)",
       },
       fontFamily: {
         display: ["var(--font-display)", "sans-serif"],
@@ -51,6 +53,7 @@ const config: Config = {
       boxShadow: {
         panel: "0 40px 80px -30px rgba(0,0,0,0.6)",
         lift: "0 8px 22px rgba(255,255,255,0.10)",
+        workspace: "0 1px 2px rgba(25,28,24,0.04), 0 8px 24px rgba(25,28,24,0.035)",
       },
     },
   },

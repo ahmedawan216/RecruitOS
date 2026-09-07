@@ -18,6 +18,25 @@
   --color-danger: #f0776c;
 }
 
+.workspace-theme {
+  --color-bg: #f6f6f3;
+  --color-surface: #ffffff;
+  --color-surface-2: #efefeb;
+  --color-border: #deded8;
+  --color-border-strong: #c5c6bf;
+  --color-ink: #20221f;
+  --color-ink-dim: #686b65;
+  --color-ink-faint: #92958e;
+  --color-accent: #365f4b;
+  --color-accent-dim: rgba(54, 95, 75, 0.22);
+  --color-accent-soft: rgba(54, 95, 75, 0.08);
+  --color-success: #2f7252;
+  --color-warning: #956715;
+  --color-danger: #b8453b;
+  --color-info: #426a8c;
+  color-scheme: light;
+}
+
 @layer base {
   * { @apply border-border; }
   html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
@@ -27,6 +46,22 @@
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+@layer components {
+  .workspace-control {
+    @apply min-h-11 w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm text-ink shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-ink-faint hover:border-border-strong focus:border-accent focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-ink-faint;
+  }
+
+  .workspace-surface {
+    @apply rounded-xl border border-border bg-surface shadow-[0_1px_2px_rgba(25,28,24,0.04)];
+  }
+}
+
+@media (min-width: 1024px) {
+  .workspace-content > main {
+    padding-top: 2.5rem;
   }
 }
 

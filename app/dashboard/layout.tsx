@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { Header } from "@/components/layout/header";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  await requireAuthenticatedUser();
-  return <><Header dashboard />{children}</>;
+  const user = await requireAuthenticatedUser();
+  return <DashboardShell email={user.email ?? "Signed-in recruiter"}>{children}</DashboardShell>;
 }

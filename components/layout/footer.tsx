@@ -1,3 +1,6 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { siteConfig } from "@/lib/site-config";
 import { Logo } from "@/components/ui/logo";
 
@@ -8,7 +11,10 @@ const footerLinks = [
 ];
 
 export function Footer() {
+  const pathname = usePathname();
   const year = new Date().getFullYear();
+
+  if (pathname.startsWith("/dashboard")) return null;
 
   return (
     <footer className="border-t border-border py-[46px]">

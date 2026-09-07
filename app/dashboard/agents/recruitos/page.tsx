@@ -1,28 +1,129 @@
 import Link from "next/link";
+import { ArrowRight, BriefcaseBusiness, Clock3, CornerDownLeft, Plus, Sparkles, Users } from "lucide-react";
+
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { EmptyState, ErrorState, SectionHeading, StatusBadge, Surface } from "@/components/ui/workspace";
 import RecruiterSummary from "./recruiter-summary";
+
+const baseHref = "/dashboard/agents/recruitos";
+
+type RelatedCandidate = { full_name: string | null; email: string | null };
+type RelatedJob = { title: string };
+
+function relation<T>(value: T | T[] | null): T | null {
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+function formatActivity(type: string) {
+  const labels: Record<string, string> = {
+    resume_uploaded: "Resume uploaded",
+    analysis_created: "Candidate analyzed",
+    status_changed: "Pipeline stage updated",
+    note_added: "Private note added",
+  };
+  return labels[type] ?? type.replaceAll("_", " ");
+}
 
 export default async function RecruitOSPage() {
   const user = await requireAuthenticatedUser();
-  const [{ data: jobs }, { count: candidates }, { count: reviewCount }, { count: interviews }, { data: topCandidates }] = await Promise.all([
-    supabaseAdmin.from("jobs").select("id, title, status, lifecycle_status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+  const [activeJobsResult, recentJobsResult, candidatesResult, reviewResult, interviewsResult, activityResult] = await Promise.all([
+    supabaseAdmin.from("jobs").select("id", { count: "exact", head: true }).eq("user_id", user.id).or("lifecycle_status.eq.open,status.eq.open"),
+    supabaseAdmin.from("jobs").select("id, title, status, lifecycle_status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(4),
     supabaseAdmin.from("candidates").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-    supabaseAdmin.from("candidate_job_matches").select("id", { count: "exact", head: true }).eq("user_id", user.id).in("recruiter_status", ["new", "reviewing"]),
+    supabaseAdmin.from("candidate_job_matches").select("id, candidate_id, job_id, match_score, recruiter_status, candidates ( full_name, email ), jobs ( title )", { count: "exact" }).eq("user_id", user.id).in("recruiter_status", ["new", "reviewing"]).order("updated_at", { ascending: false }).limit(5),
     supabaseAdmin.from("candidate_job_matches").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("recruiter_status", "interview"),
-    supabaseAdmin.from("candidate_job_matches").select("id, candidate_id, job_id, match_score, candidates ( full_name, email ), jobs ( title )").eq("user_id", user.id).order("match_score", { ascending: false, nullsFirst: false }).limit(5),
+    supabaseAdmin.from("candidate_activity").select("id, candidate_id, job_id, type, created_at, candidates ( full_name, email ), jobs ( title )").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
   ]);
-  const hasJobs = Boolean(jobs?.length);
 
-  return <main className="min-h-screen bg-bg px-4 pb-20 pt-24 sm:px-6 sm:pt-28 lg:px-8"><div className="mx-auto max-w-wrap">
-    <div className="mb-9 border-b border-border pb-8 sm:mb-10 sm:pb-10"><div className="mb-4 flex flex-wrap items-center gap-3"><span className="font-mono text-[11px] tracking-[0.08em] text-accent">EMPLOYEE 001</span><span className="rounded-full border border-accent/20 bg-accent/[0.06] px-2.5 py-1 font-mono text-[10px] tracking-[0.05em] text-accent">ACTIVE</span></div><h1 className="font-display text-[clamp(36px,5vw,64px)] font-semibold leading-[1.05] tracking-[-0.025em] text-ink">RecruitOS</h1><p className="mt-4 max-w-[720px] text-[15px] leading-[1.7] text-ink-dim">Your AI recruiting employee. Identify strong candidates, understand fit, and keep control over every hiring decision.</p></div>
+  const hasQueryError = [activeJobsResult, recentJobsResult, candidatesResult, reviewResult, interviewsResult, activityResult].some((result) => result.error);
+  const recentJobs = recentJobsResult.data ?? [];
+  const reviewItems = reviewResult.data ?? [];
+  const activity = activityResult.data ?? [];
+  const activeJobCount = activeJobsResult.count ?? 0;
+  const candidateCount = candidatesResult.count ?? 0;
+  const reviewCount = reviewResult.count ?? 0;
+  const interviewCount = interviewsResult.count ?? 0;
 
-    {!hasJobs && <section className="mb-8 rounded-xl border border-accent/30 bg-accent/[0.03] p-5 sm:mb-10 sm:p-8"><p className="font-mono text-[11px] tracking-[0.08em] text-accent">WELCOME TO RECRUITOS</p><h2 className="mt-3 font-display text-2xl font-semibold text-ink">Build your first hiring pipeline.</h2><p className="mt-3 max-w-[700px] text-sm leading-[1.7] text-ink-dim">Create a job, upload one or more resumes, and RecruitOS will turn them into persistent candidate profiles with job-specific AI match intelligence.</p><div className="mt-6 flex flex-col gap-3 sm:flex-row"><Link href="/dashboard/agents/recruitos/jobs/new" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-accent px-5 py-3 text-sm font-medium text-bg transition-opacity hover:opacity-90">Create your first job</Link><Link href="/dashboard/agents/recruitos/candidates" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-5 py-3 text-sm text-ink transition-colors hover:border-accent hover:text-accent">Explore candidates</Link></div></section>}
+  return (
+    <main className="min-h-screen bg-bg px-4 pb-16 pt-24 sm:px-6 sm:pt-24 lg:px-8 lg:pt-10">
+      <div className="mx-auto max-w-[1180px]">
+        <header className="mb-7 sm:mb-8">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Recruiting workspace</p>
+          <h1 className="max-w-3xl font-display text-[clamp(30px,4vw,46px)] font-semibold leading-[1.12] tracking-[-0.035em] text-ink">What are we hiring for today?</h1>
+          <p className="mt-3 max-w-2xl text-[15px] leading-6 text-ink-dim">Start with a job, review the people who need attention, or move directly into your candidate workspace.</p>
+        </header>
 
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[{ label: "Active jobs", value: jobs?.filter((job) => (job.lifecycle_status ?? job.status) === "open").length ?? 0 }, { label: "Candidates", value: candidates ?? 0 }, { label: "Needs review", value: reviewCount ?? 0 }, { label: "Interviews", value: interviews ?? 0 }].map((metric) => <div key={metric.label} className="rounded-xl border border-border bg-surface/[0.35] p-5 sm:p-6"><p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-dim">{metric.label}</p><p className="mt-3 font-display text-3xl font-semibold text-ink">{metric.value}</p></div>)}</section>
-    <RecruiterSummary />
-    <section className="mt-8 grid gap-4 lg:grid-cols-2"><div className="rounded-xl border border-border p-5 sm:p-7"><div className="flex items-start justify-between gap-4"><div><p className="font-mono text-[11px] tracking-[0.08em] text-accent">TOP CANDIDATES</p><h2 className="mt-3 font-display text-2xl font-semibold text-ink">Highest match scores</h2></div><Link href="/dashboard/agents/recruitos/candidates" className="shrink-0 text-sm text-accent">View all →</Link></div><div className="mt-6 space-y-3">{topCandidates?.length ? topCandidates.map((match) => { const candidate = Array.isArray(match.candidates) ? match.candidates[0] : match.candidates; const job = Array.isArray(match.jobs) ? match.jobs[0] : match.jobs; return <Link key={match.id} href={`/dashboard/agents/recruitos/candidates/${match.candidate_id}?jobId=${match.job_id}`} className="flex min-h-16 items-center justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:border-accent/40 hover:bg-white/[0.02]"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{candidate?.full_name || candidate?.email || "Unnamed candidate"}</p><p className="mt-1 truncate text-xs text-ink-dim">{job?.title || "Job"}</p></div><span className="font-mono text-lg text-accent">{match.match_score ?? "—"}</span></Link> }) : <p className="text-sm text-ink-dim">Analyze resumes to start ranking candidates.</p>}</div></div>
-      <div className="rounded-xl border border-border p-5 sm:p-7"><p className="font-mono text-[11px] tracking-[0.08em] text-accent">RECENT JOBS</p><h2 className="mt-3 font-display text-2xl font-semibold text-ink">Hiring workspace</h2><div className="mt-6 space-y-3">{jobs?.length ? jobs.map((job) => <Link key={job.id} href={`/dashboard/agents/recruitos/jobs/${job.id}`} className="flex min-h-16 items-center justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:border-accent/40 hover:bg-white/[0.02]"><div className="min-w-0"><p className="truncate text-sm font-medium text-ink">{job.title}</p><p className="mt-1 text-xs capitalize text-ink-dim">{job.lifecycle_status ?? job.status}</p></div><span className="shrink-0 text-sm text-accent">Open →</span></Link>) : <p className="text-sm text-ink-dim">No jobs created yet.</p>}<Link href="/dashboard/agents/recruitos/jobs/new" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 py-3 text-sm font-medium text-bg transition-opacity hover:opacity-90">Create a job</Link></div></div></section>
-    <section className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">{[{ href: "/dashboard/agents/recruitos/analyze", code: "AI", title: "Analyze resumes", body: "Upload and analyze a candidate against a job." }, { href: "/dashboard/agents/recruitos/candidates", code: "CV", title: "Candidates", body: "Search and manage your candidate pool." }, { href: "/dashboard/agents/recruitos/jobs", code: "JOB", title: "Jobs", body: "Manage roles and their hiring pipelines." }].map((item) => <Link key={item.href} href={item.href} className="group rounded-xl border border-border p-5 transition-colors hover:border-accent/40 hover:bg-white/[0.02] sm:p-6"><p className="font-mono text-sm text-accent">{item.code}</p><h2 className="mt-7 font-display text-lg font-semibold text-ink">{item.title}</h2><p className="mt-2 text-sm leading-[1.6] text-ink-dim">{item.body}</p></Link>)}</section>
-  </div></main>;
+        <Surface className="overflow-hidden border-border-strong shadow-workspace">
+          <div className="p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-ink-dim"><Sparkles className="size-4 text-accent" aria-hidden="true" />RecruitOS commands</div>
+              <StatusBadge>Foundation preview</StatusBadge>
+            </div>
+            <label htmlFor="recruitos-command" className="sr-only">Tell RecruitOS what you need</label>
+            <textarea id="recruitos-command" rows={2} disabled aria-describedby="command-availability" placeholder="Tell RecruitOS what you need…" className="workspace-control min-h-[84px] resize-none border-0 bg-bg px-4 py-3.5 text-base shadow-none" />
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p id="command-availability" className="text-xs leading-5 text-ink-dim">Command execution arrives in a later phase. Your existing tools remain available below.</p>
+              <button type="button" disabled className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-accent px-3.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-45">Run command <CornerDownLeft className="size-3.5" aria-hidden="true" /></button>
+            </div>
+          </div>
+        </Surface>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Active jobs", value: activeJobCount, icon: BriefcaseBusiness },
+            { label: "Candidates", value: candidateCount, icon: Users },
+            { label: "Needs review", value: reviewCount, icon: Clock3 },
+            { label: "Interviews", value: interviewCount, icon: Sparkles },
+          ].map(({ label, value, icon: Icon }) => <Surface key={label} className="flex items-center gap-4 p-4"><span className="flex size-10 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon className="size-[18px]" aria-hidden="true" /></span><div><p className="text-2xl font-semibold tracking-[-0.03em] text-ink">{value}</p><p className="text-xs text-ink-dim">{label}</p></div></Surface>)}
+        </div>
+
+        {hasQueryError ? <div className="mt-4"><ErrorState>Some workspace data could not be loaded. Refresh the page to try again.</ErrorState></div> : null}
+
+        <section className="mt-8" aria-labelledby="next-actions-heading">
+          <SectionHeading eyebrow="Start here" title="Next actions" />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Link href={`${baseHref}/jobs/new`} className="group flex min-h-[94px] items-center gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm transition-[border-color,box-shadow] hover:border-border-strong hover:shadow-workspace focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-white"><Plus className="size-[18px]" aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Create a job</span><span className="mt-1 block text-xs leading-5 text-ink-dim">Add a role and begin its hiring pipeline.</span></span><ArrowRight className="size-4 text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true" /></Link>
+            <Link href={`${baseHref}/candidates`} className="group flex min-h-[94px] items-center gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm transition-[border-color,box-shadow] hover:border-border-strong hover:shadow-workspace focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-accent"><Users className="size-[18px]" aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-ink">Review candidates</span><span className="mt-1 block text-xs leading-5 text-ink-dim">Search, filter, and manage your candidate pool.</span></span><ArrowRight className="size-4 text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true" /></Link>
+          </div>
+        </section>
+
+        <div className="mt-8 grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
+          <Surface className="p-5 sm:p-6">
+            <SectionHeading eyebrow="Priority queue" title="Candidates needing review" action={<Link href={`${baseHref}/candidates?status=reviewing`} className="rounded-md text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">View candidates</Link>} />
+            <div className="mt-5">
+              {reviewItems.length ? <div className="divide-y divide-border">{reviewItems.map((item) => {
+                const candidate = relation(item.candidates as RelatedCandidate | RelatedCandidate[] | null);
+                const job = relation(item.jobs as RelatedJob | RelatedJob[] | null);
+                return <Link key={item.id} href={`${baseHref}/candidates/${item.candidate_id}?jobId=${item.job_id}`} className="group flex min-h-[66px] items-center gap-3 py-3 first:pt-0 last:pb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-semibold text-ink">{(candidate?.full_name || candidate?.email || "C").charAt(0).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink group-hover:text-accent">{candidate?.full_name || candidate?.email || "Unnamed candidate"}</span><span className="mt-0.5 block truncate text-xs text-ink-dim">{job?.title || "Job"}</span></span><span className="hidden text-right sm:block"><StatusBadge tone={item.recruiter_status === "new" ? "info" : "warning"}>{item.recruiter_status}</StatusBadge>{item.match_score !== null ? <span className="mt-1.5 block text-[11px] text-ink-dim">{item.match_score}% match</span> : null}</span><ArrowRight className="size-4 shrink-0 text-ink-faint" aria-hidden="true" /></Link>;
+              })}</div> : <EmptyState title="Review queue is clear" description={candidateCount ? "No candidates are currently marked new or reviewing." : "Create a job and upload a resume to add your first candidate."} action={!candidateCount ? <Link href={`${baseHref}/jobs/new`} className="text-xs font-medium text-accent hover:underline">Create a job</Link> : undefined} />}
+            </div>
+          </Surface>
+
+          <Surface className="p-5 sm:p-6">
+            <SectionHeading eyebrow="Hiring work" title="Recent jobs" action={<Link href={`${baseHref}/jobs`} className="rounded-md text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">View all</Link>} />
+            <div className="mt-5">
+              {recentJobs.length ? <div className="divide-y divide-border">{recentJobs.map((job) => {
+                const lifecycle = job.lifecycle_status ?? job.status;
+                return <Link key={job.id} href={`${baseHref}/jobs/${job.id}`} className="group flex min-h-[62px] items-center gap-3 py-3 first:pt-0 last:pb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink group-hover:text-accent">{job.title}</span><span className="mt-1 block text-xs text-ink-dim">Created {new Date(job.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></span><StatusBadge tone={lifecycle === "open" ? "success" : "neutral"}>{lifecycle}</StatusBadge></Link>;
+              })}</div> : <EmptyState title="No jobs yet" description="Create a job to establish the role and requirements candidates will be evaluated against." action={<Link href={`${baseHref}/jobs/new`} className="text-xs font-medium text-accent hover:underline">Create your first job</Link>} />}
+            </div>
+          </Surface>
+        </div>
+
+        <Surface className="mt-4 p-5 sm:p-6">
+          <SectionHeading eyebrow="Workspace history" title="Recent activity" />
+          <div className="mt-5">
+            {activity.length ? <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{activity.map((item) => {
+              const candidate = relation(item.candidates as RelatedCandidate | RelatedCandidate[] | null);
+              const job = relation(item.jobs as RelatedJob | RelatedJob[] | null);
+              return <li key={item.id} className="rounded-lg border border-border bg-bg/50 p-4"><p className="text-sm font-medium capitalize text-ink">{formatActivity(item.type)}</p><p className="mt-1 truncate text-xs text-ink-dim">{candidate?.full_name || candidate?.email || "Candidate"}{job?.title ? ` · ${job.title}` : ""}</p><time dateTime={item.created_at} className="mt-3 block text-[11px] text-ink-faint">{new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</time></li>;
+            })}</ol> : <EmptyState title="No activity yet" description="Uploads, analyses, notes, and pipeline updates will appear here as you work." />}
+          </div>
+        </Surface>
+
+        <RecruiterSummary />
+      </div>
+    </main>
+  );
 }
