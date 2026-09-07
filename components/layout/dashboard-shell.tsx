@@ -75,7 +75,7 @@ export function DashboardShell({ children, email }: { children: ReactNode; email
         menuButtonRef.current?.focus();
       }
       if (event.key === "Tab") {
-        const focusable = mobilePanelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), summary, [tabindex]:not([tabindex="-1"])');
+        const focusable = Array.from(mobilePanelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), summary, [tabindex]:not([tabindex="-1"])') ?? []).filter((element) => !element.closest("details:not([open])") || element.tagName === "SUMMARY");
         if (!focusable?.length) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
@@ -110,7 +110,7 @@ export function DashboardShell({ children, email }: { children: ReactNode; email
 
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Workspace navigation">
-          <button type="button" className="absolute inset-0 bg-ink/35" onClick={() => setMobileOpen(false)} aria-label="Close workspace navigation" />
+          <button type="button" className="absolute inset-0 bg-ink/35" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }} aria-label="Close workspace navigation" />
           <div ref={mobilePanelRef} id="mobile-workspace-navigation" className="absolute inset-y-0 right-0 flex w-[min(88vw,340px)] flex-col border-l border-border bg-surface shadow-2xl">
             <div className="flex h-16 items-center justify-between border-b border-border px-4"><span className="text-sm font-semibold text-ink">Navigation</span><button ref={closeButtonRef} type="button" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }} className="flex size-11 items-center justify-center rounded-lg text-ink-dim hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" aria-label="Close workspace navigation"><X className="size-5" aria-hidden="true" /></button></div>
             <div className="flex-1 overflow-y-auto px-3 py-5"><WorkspaceNavigation pathname={pathname} onNavigate={() => setMobileOpen(false)} /></div>

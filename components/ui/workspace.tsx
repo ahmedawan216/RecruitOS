@@ -7,8 +7,8 @@ export function Surface({ className, ...props }: HTMLAttributes<HTMLDivElement>)
   return <div className={cn("workspace-surface", className)} {...props} />;
 }
 
-export function SectionHeading({ eyebrow, title, action }: { eyebrow?: string; title: string; action?: ReactNode }) {
-  return <div className="flex items-end justify-between gap-4"><div>{eyebrow ? <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">{eyebrow}</p> : null}<h2 className="font-display text-lg font-semibold tracking-[-0.015em] text-ink sm:text-xl">{title}</h2></div>{action}</div>;
+export function SectionHeading({ eyebrow, title, action, id }: { eyebrow?: string; title: string; action?: ReactNode; id?: string }) {
+  return <div className="flex items-end justify-between gap-4"><div>{eyebrow ? <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-faint">{eyebrow}</p> : null}<h2 id={id} className="font-display text-lg font-semibold tracking-[-0.015em] text-ink sm:text-xl">{title}</h2></div>{action}</div>;
 }
 
 export function StatusBadge({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "success" | "warning" | "info" }) {
