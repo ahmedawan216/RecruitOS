@@ -1,0 +1,24 @@
+import { NextResponse } from "next/server";
+
+import { createCommandExecution } from "@/lib/recruitos/execution-server";
+
+export async function POST(request: Request) {
+  try {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "The command submission was malformed." }, { status: 400 });
+    }
+
+    const result = await createCommandExecution(body);
+    if (!result.ok) return NextResponse.json({ error: result.error, code: result.code }, { status: result.status });
+    return NextResponse.json({ execution: result.execution, duplicate: result.duplicate }, { status: result.duplicate ? 200 : 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "AUTH_REQUIRED") {
+      return NextResponse.json({ error: "Please sign in to run RecruitOS tasks." }, { status: 401 });
+    }
+    console.error("RecruitOS execution intake route failed:", error);
+    return NextResponse.json({ error: "RecruitOS could not create the task. Please try again." }, { status: 500 });
+  }
+}
