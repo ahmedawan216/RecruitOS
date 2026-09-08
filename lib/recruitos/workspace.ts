@@ -1,4 +1,4 @@
-/** UI references only; execution payloads belong to the later command layer. */
+/** UI references for the RecruitOS command workspace. */
 export type WorkspaceDraft = { text: string; jobId: string | null };
 export type WorkspaceState =
   | { phase: "idle" | "command-draft"; draft: WorkspaceDraft }
@@ -29,6 +29,6 @@ export function getWorkspaceHeading({ reviewCount, jobCount, activeJobTitle, has
 
 export function getWorkspaceSuggestions(job?: WorkspaceJob): string[] {
   return job
-    ? [`Review candidates for ${job.title}`, `Show candidates needing review for ${job.title}`]
-    : ["Show candidates needing review", "Help me review candidates for a role"];
+    ? [`Review applicants for ${job.title} and prepare the strongest 8`, `Find the best 8 candidates for ${job.title}`]
+    : ["Review applicants for a job and prepare the strongest 8", "Find the best 8 candidates for a job"];
 }
