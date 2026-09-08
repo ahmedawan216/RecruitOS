@@ -251,7 +251,14 @@ export function DashboardShell({ children, email }: { children: ReactNode; email
         </div>
       ) : null}
 
-      <div className="workspace-content min-w-0">{children}</div>
+      <div
+        className={cn(
+          "workspace-content min-w-0 lg:transition-[padding-right] lg:duration-200",
+          desktopPinnedOpen ? "lg:pr-[7.5rem]" : "lg:pr-[4.5rem]",
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }
