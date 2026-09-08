@@ -8,14 +8,22 @@ export type WorkspaceState =
   | { phase: "error" | "cancelled"; executionId: string; message: string };
 
 export type WorkspaceJob = { id: string; title: string };
+export type WorkspaceHeadingContext = {
+  reviewCount: number | null;
+  jobCount: number | null;
+  activeJobTitle?: string;
+  hasRecentActivity?: boolean;
+};
 
-/** Null means unavailable, never an empty workspace. Selected on the server. */
-export function getWorkspaceHeading(reviewCount: number | null, jobCount: number | null, recentJob?: string) {
+/** Null means unavailable, never an empty workspace. Selected deterministically from real workspace state. */
+export function getWorkspaceHeading({ reviewCount, jobCount, activeJobTitle, hasRecentActivity = false }: WorkspaceHeadingContext) {
   if (reviewCount !== null && reviewCount > 0) {
-    return reviewCount === 1 ? "One candidate review to pick up." : "Ready to review the next candidates?";
+    return reviewCount === 1 ? "One candidate review to pick up." : `${reviewCount} candidate reviews to pick up.`;
   }
-  if (jobCount === 0) return "What role are we hiring for?";
-  if (recentJob) return `Continue with ${recentJob}.`;
+  if (activeJobTitle) return `Ready to find the strongest candidates for ${activeJobTitle}?`;
+  if (hasRecentActivity) return "Continue where you left off?";
+  if (jobCount === 0) return "What are we hiring for today?";
+  if (jobCount !== null && jobCount > 0) return "Who are we reviewing today?";
   return "What are we hiring for today?";
 }
 

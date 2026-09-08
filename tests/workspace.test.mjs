@@ -10,19 +10,25 @@ const workspace = { exports: {} };
 new Function("exports", "module", compiled.outputText)(workspace.exports, workspace);
 const { getWorkspaceHeading, getWorkspaceSuggestions } = workspace.exports;
 
-test("review workload takes priority over a recent role", () => {
-  assert.equal(getWorkspaceHeading(1, 2, "Accountant"), "One candidate review to pick up.");
-  assert.equal(getWorkspaceHeading(12, 2, "Accountant"), "Ready to review the next candidates?");
+test("unfinished review work takes priority over every other workspace signal", () => {
+  assert.equal(getWorkspaceHeading({ reviewCount: 1, jobCount: 2, activeJobTitle: "Accountant", hasRecentActivity: true }), "One candidate review to pick up.");
+  assert.equal(getWorkspaceHeading({ reviewCount: 12, jobCount: 2, activeJobTitle: "Accountant", hasRecentActivity: true }), "12 candidate reviews to pick up.");
 });
 
-test("empty and unavailable workspace data are different", () => {
-  assert.equal(getWorkspaceHeading(0, 0), "What role are we hiring for?");
-  assert.equal(getWorkspaceHeading(null, null), "What are we hiring for today?");
-  assert.equal(getWorkspaceHeading(null, 2, "Accountant"), "Continue with Accountant.");
+test("active job context wins when there is no review work", () => {
+  assert.equal(getWorkspaceHeading({ reviewCount: 0, jobCount: 2, activeJobTitle: "Junior AI Engineer", hasRecentActivity: true }), "Ready to find the strongest candidates for Junior AI Engineer?");
 });
 
-test("headings are deterministic", () => {
-  assert.equal(getWorkspaceHeading(0, 2, "Accountant"), getWorkspaceHeading(0, 2, "Accountant"));
+test("returning activity, first run, and neutral states remain distinct", () => {
+  assert.equal(getWorkspaceHeading({ reviewCount: 0, jobCount: 0, hasRecentActivity: true }), "Continue where you left off?");
+  assert.equal(getWorkspaceHeading({ reviewCount: 0, jobCount: 0 }), "What are we hiring for today?");
+  assert.equal(getWorkspaceHeading({ reviewCount: 0, jobCount: 2 }), "Who are we reviewing today?");
+  assert.equal(getWorkspaceHeading({ reviewCount: null, jobCount: null }), "What are we hiring for today?");
+});
+
+test("headings are deterministic for identical real workspace state", () => {
+  const state = { reviewCount: 0, jobCount: 2, activeJobTitle: "Accountant", hasRecentActivity: true };
+  assert.equal(getWorkspaceHeading(state), getWorkspaceHeading(state));
 });
 
 test("suggestions use only the supplied role and stay bounded", () => {

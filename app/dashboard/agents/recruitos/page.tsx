@@ -51,7 +51,12 @@ export default async function RecruitOSPage() {
   const reviewJob = review ? relation(review.jobs as RelatedJob | RelatedJob[] | null) : null;
   const contextJob: WorkspaceJob | undefined = review && reviewJob ? { id: review.job_id, title: reviewJob.title } : jobs[0];
   const scopeJobs = contextJob && !jobs.some((job) => job.id === contextJob.id) ? [contextJob, ...jobs] : jobs;
-  const heading = getWorkspaceHeading(reviewCount, jobCount, contextJob?.title);
+  const heading = getWorkspaceHeading({
+    reviewCount,
+    jobCount,
+    activeJobTitle: contextJob?.title,
+    hasRecentActivity: !activityResult.error && Boolean(activityResult.data?.length),
+  });
   const workload = reviewCount === null
     ? "Review workload is unavailable. Your recruiting tools are still accessible."
     : reviewCount > 0
@@ -61,7 +66,7 @@ export default async function RecruitOSPage() {
           : `${jobCount} ${jobCount === 1 ? "job" : "jobs"} in your workspace · No matches marked New or Reviewing`;
 
   return (
-    <main className="min-h-screen bg-bg px-4 pb-12 pt-24 sm:px-6 lg:px-8 lg:pt-10">
+    <main className="bg-bg px-4 pb-14 pt-24 sm:px-6 lg:pb-16 lg:pl-12 lg:pr-10 lg:pt-10 xl:pl-14 xl:pr-12">
       <TaskSurface>
         <div className="mb-6 flex items-center justify-between gap-4">
           <p className="text-sm font-medium text-ink-dim">Workspace</p>
@@ -75,55 +80,55 @@ export default async function RecruitOSPage() {
         <CommandComposer jobs={scopeJobs} contextJob={contextJob} />
 
         <div className="mt-8 grid items-start gap-7 min-[1200px]:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
-        <section id="workspace-tools" aria-labelledby="continue-heading" className="min-w-0 scroll-mt-24">
-          <h2 id="continue-heading" className="mb-4 font-display text-xl font-semibold leading-7 text-ink">{review ? "Current work" : "Start with the tools"}</h2>
-          <div className="rounded-xl border border-border bg-surface p-5 sm:p-6">
-          {review ? <div>
-            <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="break-words text-lg font-medium leading-7 text-ink">{candidate?.full_name || candidate?.email || "Unnamed candidate"}</p>
-              <p className="mt-1 break-words text-[15px] leading-[22px] text-ink-dim">{reviewJob?.title || "Job"}</p>
-              <p className="mt-4 inline-flex items-center gap-2 text-[13px] leading-[18px] text-ink-dim"><span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden="true" /><span><span className="font-medium capitalize text-ink">{review.recruiter_status}</span> · Awaiting your review</span></p>
+          <section id="workspace-tools" aria-labelledby="continue-heading" className="min-w-0 scroll-mt-24">
+            <h2 id="continue-heading" className="mb-4 font-display text-xl font-semibold leading-7 text-ink">{review ? "Current work" : "Start with the tools"}</h2>
+            <div className="rounded-xl border border-border bg-surface p-5 sm:p-6">
+              {review ? <div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="break-words text-lg font-medium leading-7 text-ink">{candidate?.full_name || candidate?.email || "Unnamed candidate"}</p>
+                    <p className="mt-1 break-words text-[15px] leading-[22px] text-ink-dim">{reviewJob?.title || "Job"}</p>
+                    <p className="mt-4 inline-flex items-center gap-2 text-[13px] leading-[18px] text-ink-dim"><span className="size-2 shrink-0 rounded-full bg-warning" aria-hidden="true" /><span><span className="font-medium capitalize text-ink">{review.recruiter_status}</span> · Awaiting your review</span></p>
+                  </div>
+                  <StoredMatchScore score={review.match_score} />
+                </div>
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-[13px] leading-[18px] text-ink-dim">Most recently updated review</span>
+                  <Link href={`${baseHref}/candidates/${review.candidate_id}?jobId=${review.job_id}`} className="workspace-action">Open review <ArrowRight className="size-4" aria-hidden="true" /></Link>
+                </div>
+              </div> : contextJob ? <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="min-w-0 break-words text-sm leading-6 text-ink-dim">Pick up your hiring work for {contextJob.title}.</p>
+                <Link href={`${baseHref}/jobs/${contextJob.id}`} className="workspace-action self-start">Open job <ArrowRight className="size-4" aria-hidden="true" /></Link>
+              </div> : <p className="mt-3 text-sm leading-6 text-ink-dim">{jobCount === 0 ? "Create a job to set out the role, then upload resumes to begin reviewing." : "Open Jobs or Candidates to choose what to work on next."}</p>}
             </div>
-            <StoredMatchScore score={review.match_score} />
-            </div>
-            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-              <span className="text-[13px] leading-[18px] text-ink-dim">Most recently updated review</span>
-              <Link href={`${baseHref}/candidates/${review.candidate_id}?jobId=${review.job_id}`} className="workspace-action">Open review <ArrowRight className="size-4" aria-hidden="true" /></Link>
-            </div>
-          </div> : contextJob ? <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="min-w-0 break-words text-sm leading-6 text-ink-dim">Pick up your hiring work for {contextJob.title}.</p>
-            <Link href={`${baseHref}/jobs/${contextJob.id}`} className="workspace-action self-start">Open job <ArrowRight className="size-4" aria-hidden="true" /></Link>
-          </div> : <p className="mt-3 text-sm leading-6 text-ink-dim">{jobCount === 0 ? "Create a job to set out the role, then upload resumes to begin reviewing." : "Open Jobs or Candidates to choose what to work on next."}</p>}
-          </div>
-          <nav aria-label="Direct recruiting actions" className="-ml-2 mt-3 flex flex-wrap gap-x-3 gap-y-1">
-            <Link href={`${baseHref}/jobs/new`} className={actionClass}>Create job</Link>
-            <Link href={contextJob ? `${baseHref}/analyze?jobId=${contextJob.id}` : `${baseHref}/analyze`} className={actionClass}>{contextJob ? "Upload a resume" : "Choose a job to upload"}</Link>
-            <Link href={`${baseHref}/candidates`} className={actionClass}>Browse candidates</Link>
-          </nav>
-        </section>
+            <nav aria-label="Direct recruiting actions" className="-ml-2 mt-3 flex flex-wrap gap-x-3 gap-y-1">
+              <Link href={`${baseHref}/jobs/new`} className={actionClass}>Create job</Link>
+              <Link href={contextJob ? `${baseHref}/analyze?jobId=${contextJob.id}` : `${baseHref}/analyze`} className={actionClass}>{contextJob ? "Upload a resume" : "Choose a job to upload"}</Link>
+              <Link href={`${baseHref}/candidates`} className={actionClass}>Browse candidates</Link>
+            </nav>
+          </section>
 
-        <aside aria-label="Workspace context" className="min-w-0">
-          <h2 className="mb-4 font-display text-xl font-semibold leading-7 text-ink">In your workspace</h2>
-          <dl className="mb-3 flex flex-wrap gap-x-8 gap-y-3 py-2">
-            <div><dt className="text-[13px] leading-[18px] text-ink-dim">Jobs</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-ink">{jobCount ?? "Unavailable"}</dd></div>
-            <div><dt className="text-[13px] leading-[18px] text-ink-dim">Matches to review</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-ink">{reviewCount ?? "Unavailable"}</dd></div>
-          </dl>
-          <details className="group border-b border-border">
-            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-3 text-sm font-medium text-ink-dim [&::-webkit-details-marker]:hidden">Workspace activity <ChevronDown className="size-4 shrink-0 transition-transform duration-[180ms] group-open:rotate-180" aria-hidden="true" /></summary>
-            <div className="pb-5">
-              {activityResult.error ? <ErrorState>Activity could not be loaded. Reload the workspace to try again.</ErrorState> : activityResult.data?.length ? <ol className="divide-y divide-border">{activityResult.data.map((item) => {
-                const person = relation(item.candidates as RelatedCandidate | RelatedCandidate[] | null);
-                const job = relation(item.jobs as RelatedJob | RelatedJob[] | null);
-                return <li key={item.id} className="flex flex-col gap-1 py-3 text-sm">
-                  <div className="min-w-0"><Link href={`${baseHref}/candidates/${item.candidate_id}${item.job_id ? `?jobId=${item.job_id}` : ""}`} className="inline-flex min-h-11 items-center rounded-sm font-medium capitalize text-ink hover:text-accent">{formatActivity(item.type)}</Link><p className="break-words text-[13px] leading-[18px] text-ink-dim">{person?.full_name || person?.email || "Candidate"}{job?.title ? ` · ${job.title}` : ""}</p></div>
-                  <time dateTime={item.created_at} className="text-[13px] leading-[18px] text-ink-dim">{new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</time>
-                </li>;
-              })}</ol> : <p className="text-sm leading-6 text-ink-dim">No activity yet. Uploads, analyses, notes, and pipeline updates will appear here as you work.</p>}
-            </div>
-          </details>
-          <RecruiterSummary />
-        </aside>
+          <aside aria-label="Workspace context" className="min-w-0">
+            <h2 className="mb-4 font-display text-xl font-semibold leading-7 text-ink">In your workspace</h2>
+            <dl className="mb-3 flex flex-wrap gap-x-8 gap-y-3 py-2">
+              <div><dt className="text-[13px] leading-[18px] text-ink-dim">Jobs</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-ink">{jobCount ?? "Unavailable"}</dd></div>
+              <div><dt className="text-[13px] leading-[18px] text-ink-dim">Matches to review</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-ink">{reviewCount ?? "Unavailable"}</dd></div>
+            </dl>
+            <details className="group border-b border-border">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-3 text-sm font-medium text-ink-dim [&::-webkit-details-marker]:hidden">Workspace activity <ChevronDown className="size-4 shrink-0 transition-transform duration-[180ms] group-open:rotate-180" aria-hidden="true" /></summary>
+              <div className="pb-5">
+                {activityResult.error ? <ErrorState>Activity could not be loaded. Reload the workspace to try again.</ErrorState> : activityResult.data?.length ? <ol className="divide-y divide-border">{activityResult.data.map((item) => {
+                  const person = relation(item.candidates as RelatedCandidate | RelatedCandidate[] | null);
+                  const job = relation(item.jobs as RelatedJob | RelatedJob[] | null);
+                  return <li key={item.id} className="flex flex-col gap-1 py-3 text-sm">
+                    <div className="min-w-0"><Link href={`${baseHref}/candidates/${item.candidate_id}${item.job_id ? `?jobId=${item.job_id}` : ""}`} className="inline-flex min-h-11 items-center rounded-sm font-medium capitalize text-ink hover:text-accent">{formatActivity(item.type)}</Link><p className="break-words text-[13px] leading-[18px] text-ink-dim">{person?.full_name || person?.email || "Candidate"}{job?.title ? ` · ${job.title}` : ""}</p></div>
+                    <time dateTime={item.created_at} className="text-[13px] leading-[18px] text-ink-dim">{new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</time>
+                  </li>;
+                })}</ol> : <p className="text-sm leading-6 text-ink-dim">No activity yet. Uploads, analyses, notes, and pipeline updates will appear here as you work.</p>}
+              </div>
+            </details>
+            <RecruiterSummary />
+          </aside>
         </div>
       </TaskSurface>
     </main>

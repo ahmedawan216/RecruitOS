@@ -3,7 +3,7 @@ import { TaskSurface } from "@/components/recruitos/workspace/task-surface";
 
 export default function DashboardLoading() {
   return (
-    <main className="min-h-screen bg-bg px-4 pb-16 pt-24 sm:px-6 lg:px-8 lg:pt-10" aria-label="Loading workspace" aria-busy="true">
+    <main className="bg-bg px-4 pb-14 pt-24 sm:px-6 lg:pb-16 lg:pl-12 lg:pr-10 lg:pt-10 xl:pl-14 xl:pr-12" aria-label="Loading workspace" aria-busy="true">
       <TaskSurface>
         <Skeleton className="mb-8 h-11 w-full" />
         <Skeleton className="h-10 w-full max-w-xl" />
