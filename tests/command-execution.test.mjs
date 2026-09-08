@@ -12,7 +12,9 @@ const compiled = ts.transpileModule(source, {
 const commandModule = { exports: {} };
 new Function("exports", "module", "require", compiled.outputText)(commandModule.exports, commandModule, require);
 const {
+  canCancelExecution,
   executionResultSchema,
+  isTerminalExecutionStatus,
   parseRecruitingCommand,
   resolveJobReference,
 } = commandModule.exports;
@@ -20,7 +22,7 @@ const {
 const seniorAccountant = { id: "11111111-1111-4111-8111-111111111111", title: "Senior Accountant" };
 const staffAccountant = { id: "22222222-2222-4222-8222-222222222222", title: "Staff Accountant" };
 
-test("supported review commands resolve to the allowlisted intent", () => {
+test("supported review commands resolve to the allowlisted intent and job", () => {
   const examples = [
     "Review applicants for Senior Accountant and prepare the strongest 8.",
     "Find the best 8 candidates for Senior Accountant.",
@@ -32,6 +34,7 @@ test("supported review commands resolve to the allowlisted intent", () => {
     assert.equal(parsed.ok, true, example);
     assert.equal(parsed.value.intent, "review_and_rank_candidates");
     assert.equal(parsed.value.requestedCount, 8);
+    assert.equal(parsed.value.requestedJobText, "Senior Accountant");
   }
 });
 
@@ -64,7 +67,16 @@ test("a conflicting selected scope is surfaced instead of silently switching job
   assert.equal(result.status, "scope_conflict");
 });
 
-test("structured shortlist validation rejects invented shape drift", () => {
+test("execution terminal and cancellation boundaries are explicit", () => {
+  for (const status of ["completed", "failed", "cancelled", "clarification_required"]) assert.equal(isTerminalExecutionStatus(status), true);
+  for (const status of ["queued", "running"]) {
+    assert.equal(isTerminalExecutionStatus(status), false);
+    assert.equal(canCancelExecution(status), true);
+  }
+  assert.equal(canCancelExecution("completed"), false);
+});
+
+test("structured shortlist validation rejects malformed result shape", () => {
   const valid = executionResultSchema.safeParse({
     kind: "candidate_shortlist",
     job: seniorAccountant,

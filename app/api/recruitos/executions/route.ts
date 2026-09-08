@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server";
 
-import { createCommandExecution } from "@/lib/recruitos/execution-server";
+import { createCommandExecution, getLatestRecoverableExecution } from "@/lib/recruitos/execution-server";
+import { requireAuthenticatedUser } from "@/lib/supabase/auth";
+
+export async function GET() {
+  try {
+    const user = await requireAuthenticatedUser();
+    const execution = await getLatestRecoverableExecution(user.id);
+    return NextResponse.json({ execution });
+  } catch (error) {
+    if (error instanceof Error && error.message === "AUTH_REQUIRED") {
+      return NextResponse.json({ error: "Please sign in to view RecruitOS tasks." }, { status: 401 });
+    }
+    console.error("RecruitOS latest execution route failed:", error);
+    return NextResponse.json({ error: "Recent RecruitOS task could not be loaded." }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {

@@ -68,7 +68,7 @@ export type JobResolution =
   | { status: "ambiguous"; jobs: JobReference[] }
   | { status: "scope_conflict"; job: JobReference };
 
-const consequentialPattern = /\b(reject|hire|advance|move\s+(?:them|candidates|applicants)|send\s+(?:an|the)?\s*email|email\s+(?:them|candidates|applicants)|contact\s+(?:them|candidates|applicants)|delete|publish|change\s+(?:their\s+)?status|make\s+(?:an\s+)?offer)\b/i;
+const consequentialPattern = /\b(reject|hire|advance|move\s+(?:them|candidates|applicants)|send\s+(?:an\s+|the\s+)?email|email\s+(?:them|candidates|applicants)|contact\s+(?:them|candidates|applicants)|delete|publish|change\s+(?:their\s+)?status|make\s+(?:an\s+)?offer)\b/i;
 const workPattern = /\b(review|find|prepare|rank|compare|shortlist)\b/i;
 const subjectPattern = /\b(candidate|candidates|applicant|applicants|shortlist)\b/i;
 
@@ -98,9 +98,11 @@ function extractRequestedCount(text: string): number | null | "invalid" {
 }
 
 function extractRequestedJobText(text: string): string | null {
-  const match = text.match(/\bfor\s+(.+?)(?=\s+and\s+(?:prepare|give|show|rank|compare|shortlist)\b|[.!?]*$)/i);
-  if (!match) return null;
-  const cleaned = match[1].replace(/[.!?]+$/g, "").trim();
+  const forMatch = text.match(/\bfor\s+(.+?)(?=\s+and\s+(?:prepare|give|show|rank|compare|shortlist)\b|[.!?]*$)/i);
+  const reviewMatch = text.match(/\breview\s+(.+?)\s+(?:applicants|candidates)\b/i);
+  const raw = forMatch?.[1] ?? reviewMatch?.[1];
+  if (!raw) return null;
+  const cleaned = raw.replace(/[.!?]+$/g, "").trim();
   return cleaned ? cleaned.slice(0, 200) : null;
 }
 
@@ -176,4 +178,12 @@ export function resolveJobReference(jobs: JobReference[], requestedJobText: stri
   if (safePartial.length === 1) return { status: "resolved", job: safePartial[0] };
   if (safePartial.length > 1) return { status: "ambiguous", jobs: safePartial };
   return { status: "not_found" };
+}
+
+export function isTerminalExecutionStatus(status: string) {
+  return ["completed", "failed", "cancelled", "clarification_required"].includes(status);
+}
+
+export function canCancelExecution(status: string) {
+  return ["queued", "running"].includes(status);
 }
