@@ -168,14 +168,14 @@ export function resolveJobReference(jobs: JobReference[], requestedJobText: stri
   if (!requested) return { status: "not_found" };
 
   const exact = jobs.filter((job) => normalizeJobTitle(job.title) === requested);
-  if (exact.length === 1) return { status: "resolved", job: exact[0] };
+  if (exact.length === 1) return { status: "resolved", job: exact[0]! };
   if (exact.length > 1) return { status: "ambiguous", jobs: exact };
 
   const safePartial = jobs.filter((job) => {
     const title = normalizeJobTitle(job.title);
     return title.includes(requested) || requested.includes(title);
   });
-  if (safePartial.length === 1) return { status: "resolved", job: safePartial[0] };
+  if (safePartial.length === 1) return { status: "resolved", job: safePartial[0]! };
   if (safePartial.length > 1) return { status: "ambiguous", jobs: safePartial };
   return { status: "not_found" };
 }

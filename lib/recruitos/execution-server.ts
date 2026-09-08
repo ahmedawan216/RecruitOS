@@ -11,9 +11,24 @@ import {
   type ExecutionResult,
 } from "@/lib/recruitos/command";
 
-const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled", "clarification_required"]);
+const TERMINAL = new Set(["completed", "failed", "cancelled", "clarification_required"]);
 const ANALYSIS_BATCH_SIZE = 3;
 const MAX_APPLICANTS = 1000;
+
+type DbRow = Record<string, unknown>;
+type Applicant = { candidateId: string; resumeId: string | null; recruiterStatus: string | null };
+type AnalysisRecord = {
+  id: string;
+  candidate_id: string | null;
+  match_score: number | null;
+  recommendation: "interview" | "maybe" | "reject" | null;
+  summary: string | null;
+  why_strong_match: string | null;
+  matching_skills: string[] | null;
+  missing_skills: string[] | null;
+  potential_concerns: string[] | null;
+  years_relevant_experience: number | null;
+};
 
 export type ExecutionSnapshot = {
   id: string;
@@ -30,38 +45,15 @@ export type ExecutionSnapshot = {
   updatedAt: string;
 };
 
-type Applicant = {
-  candidateId: string;
-  resumeId: string | null;
-  recruiterStatus: string | null;
-  latestAnalysisId: string | null;
-};
-
-type AnalysisRecord = {
-  id: string;
-  candidate_id: string | null;
-  resume_id: string;
-  job_id: string | null;
-  status: string;
-  match_score: number | null;
-  recommendation: "interview" | "maybe" | "reject" | null;
-  summary: string | null;
-  why_strong_match: string | null;
-  matching_skills: string[] | null;
-  missing_skills: string[] | null;
-  potential_concerns: string[] | null;
-  years_relevant_experience: number | null;
-};
-
-function workState(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+function asObject(value: unknown): DbRow {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as DbRow : {};
 }
 
-function stringArray(value: unknown): string[] {
+function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-function snapshot(row: Record<string, unknown>): ExecutionSnapshot {
+function snapshot(row: DbRow): ExecutionSnapshot {
   const parsedResult = row.result ? executionResultSchema.safeParse(row.result) : null;
   return {
     id: String(row.id),
@@ -79,7 +71,30 @@ function snapshot(row: Record<string, unknown>): ExecutionSnapshot {
   };
 }
 
-async function appendEvent(userId: string, executionId: string, kind: string, message: string, data: Record<string, unknown> = {}) {
+async function getExecutionRow(userId: string, executionId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("recruitos_command_executions")
+    .select("*")
+    .eq("id", executionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error("EXECUTION_READ_FAILED");
+  return data ? data as DbRow : null;
+}
+
+async function updateExecution(userId: string, executionId: string, values: DbRow) {
+  const { data, error } = await supabaseAdmin
+    .from("recruitos_command_executions")
+    .update({ ...values, updated_at: new Date().toISOString() })
+    .eq("id", executionId)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (error || !data) throw new Error("EXECUTION_UPDATE_FAILED");
+  return data as DbRow;
+}
+
+async function appendEvent(userId: string, executionId: string, kind: string, message: string, data: DbRow = {}) {
   const { error } = await supabaseAdmin.from("recruitos_command_events").insert({
     user_id: userId,
     execution_id: executionId,
@@ -90,68 +105,37 @@ async function appendEvent(userId: string, executionId: string, kind: string, me
   if (error) throw new Error("EXECUTION_EVENT_WRITE_FAILED");
 }
 
-async function updateExecution(userId: string, executionId: string, values: Record<string, unknown>) {
-  const { data, error } = await supabaseAdmin
-    .from("recruitos_command_executions")
-    .update({ ...values, updated_at: new Date().toISOString() })
-    .eq("id", executionId)
-    .eq("user_id", userId)
-    .select("*")
-    .single();
-  if (error || !data) throw new Error("EXECUTION_UPDATE_FAILED");
-  return data as Record<string, unknown>;
-}
-
-async function getExecutionRow(userId: string, executionId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("recruitos_command_executions")
-    .select("*")
-    .eq("id", executionId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw new Error("EXECUTION_READ_FAILED");
-  return data as Record<string, unknown> | null;
-}
-
 export async function createCommandExecution(input: unknown) {
   const user = await requireAuthenticatedUser();
   const validated = commandSubmissionSchema.safeParse(input);
-  if (!validated.success) {
-    return { ok: false as const, status: 400, error: "The command submission was malformed." };
-  }
+  if (!validated.success) return { ok: false as const, status: 400, error: "The command submission was malformed." };
 
   const parsed = parseRecruitingCommand(validated.data.commandText);
-  if (!parsed.ok) {
-    return { ok: false as const, status: 422, code: parsed.code, error: parsed.message };
-  }
+  if (!parsed.ok) return { ok: false as const, status: 422, code: parsed.code, error: parsed.message };
 
   if (validated.data.jobId) {
-    const { data: scopedJob, error: scopeError } = await supabaseAdmin
+    const { data: job, error } = await supabaseAdmin
       .from("jobs")
       .select("id")
       .eq("id", validated.data.jobId)
       .eq("user_id", user.id)
       .maybeSingle();
-    if (scopeError || !scopedJob) {
-      return { ok: false as const, status: 404, code: "JOB_NOT_FOUND", error: "The selected job is not available in your workspace." };
-    }
+    if (error || !job) return { ok: false as const, status: 404, code: "JOB_NOT_FOUND", error: "The selected job is not available in your workspace." };
   }
-
-  const insertValues = {
-    user_id: user.id,
-    intent: parsed.value.intent,
-    command_text: validated.data.commandText,
-    requested_count: parsed.value.requestedCount,
-    requested_job_text: parsed.value.requestedJobText,
-    scope_job_id: validated.data.jobId ?? null,
-    status: "queued",
-    stage: "resolving_job",
-    idempotency_key: validated.data.idempotencyKey,
-  };
 
   const { data, error } = await supabaseAdmin
     .from("recruitos_command_executions")
-    .insert(insertValues)
+    .insert({
+      user_id: user.id,
+      intent: parsed.value.intent,
+      command_text: validated.data.commandText,
+      requested_count: parsed.value.requestedCount,
+      requested_job_text: parsed.value.requestedJobText,
+      scope_job_id: validated.data.jobId ?? null,
+      status: "queued",
+      stage: "resolving_job",
+      idempotency_key: validated.data.idempotencyKey,
+    })
     .select("*")
     .single();
 
@@ -163,21 +147,21 @@ export async function createCommandExecution(input: unknown) {
         .eq("user_id", user.id)
         .eq("idempotency_key", validated.data.idempotencyKey)
         .maybeSingle();
-      if (existing) return { ok: true as const, duplicate: true, execution: snapshot(existing as Record<string, unknown>) };
+      if (existing) return { ok: true as const, duplicate: true, execution: snapshot(existing as DbRow) };
     }
     console.error("RecruitOS execution create error:", { code: error.code });
     return { ok: false as const, status: 500, error: "RecruitOS could not create the task. Please try again." };
   }
 
   await appendEvent(user.id, data.id, "status", "Understanding request");
-  return { ok: true as const, duplicate: false, execution: snapshot(data as Record<string, unknown>) };
+  return { ok: true as const, duplicate: false, execution: snapshot(data as DbRow) };
 }
 
 async function loadApplicants(userId: string, jobId: string): Promise<Applicant[]> {
   const [{ data: matches, error: matchError }, { data: activities, error: activityError }] = await Promise.all([
     supabaseAdmin
       .from("candidate_job_matches")
-      .select("candidate_id, resume_id, latest_analysis_id, recruiter_status, updated_at")
+      .select("candidate_id, resume_id, recruiter_status, updated_at")
       .eq("user_id", userId)
       .eq("job_id", jobId)
       .order("updated_at", { ascending: false })
@@ -194,21 +178,15 @@ async function loadApplicants(userId: string, jobId: string): Promise<Applicant[
   if (matchError || activityError) throw new Error("APPLICANT_LOAD_FAILED");
 
   const byCandidate = new Map<string, Applicant>();
-  for (const match of matches ?? []) {
-    byCandidate.set(match.candidate_id, {
-      candidateId: match.candidate_id,
-      resumeId: match.resume_id,
-      latestAnalysisId: match.latest_analysis_id,
-      recruiterStatus: match.recruiter_status,
-    });
+  for (const row of matches ?? []) {
+    byCandidate.set(row.candidate_id, { candidateId: row.candidate_id, resumeId: row.resume_id, recruiterStatus: row.recruiter_status });
   }
-  for (const activity of activities ?? []) {
-    if (byCandidate.has(activity.candidate_id)) continue;
-    const metadata = workState(activity.metadata);
-    byCandidate.set(activity.candidate_id, {
-      candidateId: activity.candidate_id,
+  for (const row of activities ?? []) {
+    if (byCandidate.has(row.candidate_id)) continue;
+    const metadata = asObject(row.metadata);
+    byCandidate.set(row.candidate_id, {
+      candidateId: row.candidate_id,
       resumeId: typeof metadata.resumeId === "string" ? metadata.resumeId : null,
-      latestAnalysisId: null,
       recruiterStatus: null,
     });
   }
@@ -216,36 +194,29 @@ async function loadApplicants(userId: string, jobId: string): Promise<Applicant[
 }
 
 async function loadUsableAnalyses(userId: string, jobId: string, applicants: Applicant[]) {
-  const candidateIds = applicants.map((item) => item.candidateId);
-  if (!candidateIds.length) return new Map<string, AnalysisRecord>();
-
+  if (!applicants.length) return new Map<string, AnalysisRecord>();
   const { data, error } = await supabaseAdmin
     .from("resume_analyses")
-    .select("id, candidate_id, resume_id, job_id, status, match_score, recommendation, summary, why_strong_match, matching_skills, missing_skills, potential_concerns, years_relevant_experience, created_at")
+    .select("id, candidate_id, match_score, recommendation, summary, why_strong_match, matching_skills, missing_skills, potential_concerns, years_relevant_experience, created_at")
     .eq("user_id", userId)
     .eq("job_id", jobId)
     .eq("status", "success")
-    .in("candidate_id", candidateIds)
+    .in("candidate_id", applicants.map((item) => item.candidateId))
     .order("created_at", { ascending: false })
     .limit(MAX_APPLICANTS);
   if (error) throw new Error("ANALYSIS_LOAD_FAILED");
 
   const map = new Map<string, AnalysisRecord>();
-  for (const item of data ?? []) {
-    if (!item.candidate_id || map.has(item.candidate_id)) continue;
-    if (typeof item.match_score !== "number" || item.match_score < 0 || item.match_score > 100) continue;
-    map.set(item.candidate_id, item as AnalysisRecord);
+  for (const row of data ?? []) {
+    if (!row.candidate_id || map.has(row.candidate_id)) continue;
+    if (typeof row.match_score !== "number" || row.match_score < 0 || row.match_score > 100) continue;
+    map.set(row.candidate_id, row as AnalysisRecord);
   }
   return map;
 }
 
-async function resolveJobStage(userId: string, execution: Record<string, unknown>) {
-  const { data: jobs, error } = await supabaseAdmin
-    .from("jobs")
-    .select("id, title")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(500);
+async function resolveJobStage(userId: string, execution: DbRow) {
+  const { data: jobs, error } = await supabaseAdmin.from("jobs").select("id, title").eq("user_id", userId).order("created_at", { ascending: false }).limit(500);
   if (error) throw new Error("JOB_LOAD_FAILED");
 
   const resolution = resolveJobReference(
@@ -253,10 +224,11 @@ async function resolveJobStage(userId: string, execution: Record<string, unknown
     typeof execution.requested_job_text === "string" ? execution.requested_job_text : null,
     typeof execution.scope_job_id === "string" ? execution.scope_job_id : null,
   );
+  const executionId = String(execution.id);
 
   if (resolution.status === "ambiguous") {
-    const options = resolution.jobs.slice(0, 6).map((job) => ({ id: job.id, title: job.title }));
-    await updateExecution(userId, String(execution.id), {
+    const options = resolution.jobs.slice(0, 6);
+    await updateExecution(userId, executionId, {
       status: "clarification_required",
       stage: "job_clarification",
       work_state: { jobOptions: options },
@@ -264,35 +236,35 @@ async function resolveJobStage(userId: string, execution: Record<string, unknown
       error_message: "More than one job matches this request. Choose a job in Scope and run it again.",
       completed_at: new Date().toISOString(),
     });
-    await appendEvent(userId, String(execution.id), "clarification", "More than one job matches this request", { jobs: options });
+    await appendEvent(userId, executionId, "clarification", "More than one job matches this request", { jobs: options });
     return;
   }
 
   if (resolution.status === "not_found") {
-    await updateExecution(userId, String(execution.id), {
+    await updateExecution(userId, executionId, {
       status: "failed",
       stage: "job_not_found",
       error_code: "JOB_NOT_FOUND",
       error_message: "RecruitOS could not find that job in your workspace. Choose a job in Scope or use its exact title.",
       completed_at: new Date().toISOString(),
     });
-    await appendEvent(userId, String(execution.id), "failed", "Requested job was not found");
+    await appendEvent(userId, executionId, "failed", "Requested job was not found");
     return;
   }
 
   if (resolution.status === "scope_conflict") {
-    await updateExecution(userId, String(execution.id), {
+    await updateExecution(userId, executionId, {
       status: "clarification_required",
       stage: "job_scope_conflict",
       error_code: "JOB_SCOPE_CONFLICT",
       error_message: `The command names a different role from the selected scope (${resolution.job.title}). Align the command and Scope, then run it again.`,
       completed_at: new Date().toISOString(),
     });
-    await appendEvent(userId, String(execution.id), "clarification", "Command and selected job scope do not match");
+    await appendEvent(userId, executionId, "clarification", "Command and selected job scope do not match");
     return;
   }
 
-  await updateExecution(userId, String(execution.id), {
+  await updateExecution(userId, executionId, {
     status: "running",
     stage: "loading_applicants",
     resolved_job_id: resolution.job.id,
@@ -301,56 +273,53 @@ async function resolveJobStage(userId: string, execution: Record<string, unknown
     error_code: null,
     error_message: null,
   });
-  await appendEvent(userId, String(execution.id), "progress", `Found ${resolution.job.title}`, { jobId: resolution.job.id });
+  await appendEvent(userId, executionId, "progress", `Found ${resolution.job.title}`, { jobId: resolution.job.id });
 }
 
-async function loadApplicantStage(userId: string, execution: Record<string, unknown>) {
+async function loadApplicantStage(userId: string, execution: DbRow) {
+  const executionId = String(execution.id);
   const jobId = String(execution.resolved_job_id);
   const applicants = await loadApplicants(userId, jobId);
   if (!applicants.length) {
-    await updateExecution(userId, String(execution.id), {
+    await updateExecution(userId, executionId, {
       status: "failed",
       stage: "no_applicants",
       error_code: "NO_APPLICANTS",
       error_message: "No applicants are associated with this job yet. Upload resumes for this role, then run the task again.",
       completed_at: new Date().toISOString(),
     });
-    await appendEvent(userId, String(execution.id), "failed", "No applicants found for this job");
+    await appendEvent(userId, executionId, "failed", "No applicants found for this job");
     return;
   }
 
   const analyses = await loadUsableAnalyses(userId, jobId, applicants);
+  const state = asObject(execution.work_state);
   const missingCount = applicants.length - analyses.size;
-  const state = workState(execution.work_state);
-  await updateExecution(userId, String(execution.id), {
+  await updateExecution(userId, executionId, {
     stage: missingCount > 0 ? "analyzing_candidates" : "comparing_candidates",
     work_state: {
       ...state,
       applicantCount: applicants.length,
       initialReusedAnalysisCount: analyses.size,
       generatedAnalysisCount: Number(state.generatedAnalysisCount ?? 0),
-      failedCandidateIds: stringArray(state.failedCandidateIds),
+      failedCandidateIds: asStringArray(state.failedCandidateIds),
     },
   });
-  await appendEvent(userId, String(execution.id), "progress", `Loading ${applicants.length} applicants`, { count: applicants.length });
-  if (analyses.size > 0) {
-    await appendEvent(userId, String(execution.id), "progress", `Using ${analyses.size} existing assessments`, { count: analyses.size });
-  }
-  if (missingCount > 0) {
-    await appendEvent(userId, String(execution.id), "progress", `${missingCount} applicants need assessment`, { count: missingCount });
-  }
+  await appendEvent(userId, executionId, "progress", `Loading ${applicants.length} applicants`, { count: applicants.length });
+  if (analyses.size) await appendEvent(userId, executionId, "progress", `Using ${analyses.size} existing assessments`, { count: analyses.size });
+  if (missingCount) await appendEvent(userId, executionId, "progress", `${missingCount} applicants need assessment`, { count: missingCount });
 }
 
-async function analysisStage(userId: string, execution: Record<string, unknown>) {
+async function analysisStage(userId: string, execution: DbRow) {
   const executionId = String(execution.id);
   const jobId = String(execution.resolved_job_id);
   const applicants = await loadApplicants(userId, jobId);
   const analyses = await loadUsableAnalyses(userId, jobId, applicants);
-  const state = workState(execution.work_state);
-  const failed = new Set(stringArray(state.failedCandidateIds));
+  const state = asObject(execution.work_state);
+  const failed = new Set(asStringArray(state.failedCandidateIds));
   let generated = Number(state.generatedAnalysisCount ?? 0);
-
   const missing = applicants.filter((item) => !analyses.has(item.candidateId) && !failed.has(item.candidateId));
+
   if (!missing.length) {
     await updateExecution(userId, executionId, { stage: "comparing_candidates", work_state: { ...state, failedCandidateIds: [...failed], generatedAnalysisCount: generated } });
     return;
@@ -362,7 +331,6 @@ async function analysisStage(userId: string, execution: Record<string, unknown>)
   for (const applicant of batch) {
     const current = await getExecutionRow(userId, executionId);
     if (!current || current.status === "cancelled") return;
-
     if (!applicant.resumeId) {
       failed.add(applicant.candidateId);
       await appendEvent(userId, executionId, "warning", "One applicant has no usable resume attached", { candidateId: applicant.candidateId });
@@ -371,9 +339,8 @@ async function analysisStage(userId: string, execution: Record<string, unknown>)
 
     try {
       const result = await analyzeResume(applicant.resumeId, jobId);
-      if (result.success) {
-        generated += 1;
-      } else {
+      if (result.success) generated += 1;
+      else {
         failed.add(applicant.candidateId);
         await appendEvent(userId, executionId, "warning", "One applicant assessment could not be completed", { candidateId: applicant.candidateId });
       }
@@ -392,36 +359,32 @@ async function analysisStage(userId: string, execution: Record<string, unknown>)
   });
 }
 
-async function compareStage(userId: string, execution: Record<string, unknown>) {
+async function compareStage(userId: string, execution: DbRow) {
   const executionId = String(execution.id);
   const jobId = String(execution.resolved_job_id);
-  const state = workState(execution.work_state);
+  const state = asObject(execution.work_state);
   const applicants = await loadApplicants(userId, jobId);
   const analyses = await loadUsableAnalyses(userId, jobId, applicants);
-  const failed = new Set(stringArray(state.failedCandidateIds));
-
+  const failed = new Set(asStringArray(state.failedCandidateIds));
   await appendEvent(userId, executionId, "progress", "Comparing strongest candidates", { assessedCount: analyses.size });
 
   const candidateIds = [...analyses.keys()];
-  const { data: candidates, error: candidateError } = candidateIds.length
-    ? await supabaseAdmin
-      .from("candidates")
-      .select("id, full_name, email")
-      .eq("user_id", userId)
-      .in("id", candidateIds)
-    : { data: [], error: null };
-  if (candidateError) throw new Error("CANDIDATE_LOAD_FAILED");
-  const candidateMap = new Map((candidates ?? []).map((item) => [item.id, item]));
-  const applicantMap = new Map(applicants.map((item) => [item.candidateId, item]));
+  const candidateQuery = candidateIds.length
+    ? await supabaseAdmin.from("candidates").select("id, full_name, email").eq("user_id", userId).in("id", candidateIds)
+    : { data: [] as { id: string; full_name: string | null; email: string | null }[], error: null };
+  if (candidateQuery.error) throw new Error("CANDIDATE_LOAD_FAILED");
 
+  const candidateMap = new Map((candidateQuery.data ?? []).map((item) => [item.id, item]));
+  const applicantMap = new Map(applicants.map((item) => [item.candidateId, item]));
+  const requestedCount = Number(execution.requested_count);
   const ranked = [...analyses.entries()]
     .sort(([, a], [, b]) => (b.match_score ?? -1) - (a.match_score ?? -1) || a.id.localeCompare(b.id))
-    .slice(0, Number(execution.requested_count))
+    .slice(0, requestedCount)
     .map(([candidateId, analysis], index) => {
       const candidate = candidateMap.get(candidateId);
       const applicant = applicantMap.get(candidateId);
       const strengths = Array.isArray(analysis.matching_skills) ? analysis.matching_skills.filter(Boolean) : [];
-      const evidence = [analysis.why_strong_match, ...strengths.slice(0, 3)].filter((item): item is string => Boolean(item && item.trim()));
+      const evidence = [analysis.why_strong_match, ...strengths.slice(0, 3)].filter((item): item is string => Boolean(item?.trim()));
       return {
         rank: index + 1,
         candidateId,
@@ -440,12 +403,7 @@ async function compareStage(userId: string, execution: Record<string, unknown>) 
       };
     });
 
-  const { data: job, error: jobError } = await supabaseAdmin
-    .from("jobs")
-    .select("id, title")
-    .eq("id", jobId)
-    .eq("user_id", userId)
-    .single();
+  const { data: job, error: jobError } = await supabaseAdmin.from("jobs").select("id, title").eq("id", jobId).eq("user_id", userId).single();
   if (jobError || !job) throw new Error("JOB_LOAD_FAILED");
 
   const generatedAnalysisCount = Number(state.generatedAnalysisCount ?? 0);
@@ -453,13 +411,13 @@ async function compareStage(userId: string, execution: Record<string, unknown>) 
   const resultValidation = executionResultSchema.safeParse({
     kind: "candidate_shortlist",
     job,
-    requestedCount: Number(execution.requested_count),
+    requestedCount,
     consideredCount: applicants.length,
     rankedCount: ranked.length,
     reusedAnalysisCount: initialReused,
     generatedAnalysisCount,
     analysisFailureCount: failed.size,
-    partial: failed.size > 0 || ranked.length < Math.min(Number(execution.requested_count), applicants.length),
+    partial: failed.size > 0 || ranked.length < Math.min(requestedCount, applicants.length),
     candidates: ranked,
   });
   if (!resultValidation.success) throw new Error("RESULT_VALIDATION_FAILED");
@@ -478,7 +436,7 @@ export async function advanceCommandExecution(executionId: string) {
   const user = await requireAuthenticatedUser();
   const execution = await getExecutionRow(user.id, executionId);
   if (!execution) return { ok: false as const, status: 404, error: "Task not found." };
-  if (TERMINAL_STATUSES.has(String(execution.status))) return { ok: true as const, execution: snapshot(execution) };
+  if (TERMINAL.has(String(execution.status))) return { ok: true as const, execution: snapshot(execution) };
 
   try {
     switch (String(execution.stage)) {
@@ -491,7 +449,7 @@ export async function advanceCommandExecution(executionId: string) {
   } catch (error) {
     console.error("RecruitOS execution runner error:", error);
     const current = await getExecutionRow(user.id, executionId);
-    if (current && !TERMINAL_STATUSES.has(String(current.status))) {
+    if (current && !TERMINAL.has(String(current.status))) {
       await updateExecution(user.id, executionId, {
         status: "failed",
         stage: "execution_failed",
@@ -522,11 +480,12 @@ export async function readCommandExecution(executionId: string, afterEventId = 0
     .limit(100);
   if (error) return { ok: false as const, status: 500, error: "Task progress could not be loaded." };
 
+  const items = events ?? [];
   return {
     ok: true as const,
     execution: snapshot(execution),
-    events: (events ?? []).map((item) => ({ id: item.id, kind: item.kind, message: item.message, data: item.data ?? {}, createdAt: item.created_at })),
-    nextCursor: events?.length ? events[events.length - 1].id : afterEventId,
+    events: items.map((item) => ({ id: item.id, kind: item.kind, message: item.message, data: item.data ?? {}, createdAt: item.created_at })),
+    nextCursor: items.at(-1)?.id ?? afterEventId,
   };
 }
 
@@ -534,10 +493,8 @@ export async function cancelCommandExecution(executionId: string) {
   const user = await requireAuthenticatedUser();
   const execution = await getExecutionRow(user.id, executionId);
   if (!execution) return { ok: false as const, status: 404, error: "Task not found." };
-  if (String(execution.status) === "completed") {
-    return { ok: false as const, status: 409, error: "This task has already completed." };
-  }
-  if (TERMINAL_STATUSES.has(String(execution.status))) return { ok: true as const, execution: snapshot(execution) };
+  if (String(execution.status) === "completed") return { ok: false as const, status: 409, error: "This task has already completed." };
+  if (TERMINAL.has(String(execution.status))) return { ok: true as const, execution: snapshot(execution) };
 
   const updated = await updateExecution(user.id, executionId, {
     status: "cancelled",
@@ -559,5 +516,5 @@ export async function getLatestRecoverableExecution(userId: string) {
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
-  return snapshot(data as Record<string, unknown>);
+  return snapshot(data as DbRow);
 }
