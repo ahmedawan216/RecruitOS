@@ -13,10 +13,13 @@ const commandModule = { exports: {} };
 new Function("exports", "module", "require", compiled.outputText)(commandModule.exports, commandModule, require);
 const {
   canCancelExecution,
+  commandSubmissionSchema,
   executionResultSchema,
   isTerminalExecutionStatus,
   parseRecruitingCommand,
+  progressEventSchema,
   resolveJobReference,
+  reviewAndRankIntentSchema,
 } = commandModule.exports;
 
 const seniorAccountant = { id: "11111111-1111-4111-8111-111111111111", title: "Senior Accountant" };
@@ -55,6 +58,12 @@ test("unsupported and consequential commands fail before any operation is allowl
   assert.equal(consequential.code, "CONSEQUENTIAL_ACTION");
 });
 
+test("submission and intent schemas reject malformed or authority-expanding input", () => {
+  assert.equal(commandSubmissionSchema.safeParse({ commandText: "Review candidates for Senior Accountant", jobId: null, idempotencyKey: "not-a-uuid" }).success, false);
+  assert.equal(reviewAndRankIntentSchema.safeParse({ intent: "run_sql", requestedCount: 8, requestedJobText: "Senior Accountant" }).success, false);
+  assert.equal(reviewAndRankIntentSchema.safeParse({ intent: "review_and_rank_candidates", requestedCount: 500, requestedJobText: "Senior Accountant" }).success, false);
+});
+
 test("job resolution uses explicit owned scope, exact normalized match, and safe ambiguity", () => {
   assert.deepEqual(resolveJobReference([seniorAccountant], null, seniorAccountant.id), { status: "resolved", job: seniorAccountant });
   assert.deepEqual(resolveJobReference([seniorAccountant], "senior-accountant"), { status: "resolved", job: seniorAccountant });
@@ -74,6 +83,24 @@ test("execution terminal and cancellation boundaries are explicit", () => {
     assert.equal(canCancelExecution(status), true);
   }
   assert.equal(canCancelExecution("completed"), false);
+});
+
+test("progress events allow operational status only, not hidden reasoning event kinds", () => {
+  const operational = progressEventSchema.safeParse({
+    id: 7,
+    kind: "progress",
+    message: "Using 31 existing assessments",
+    data: { count: 31 },
+    createdAt: new Date().toISOString(),
+  });
+  assert.equal(operational.success, true);
+  assert.equal(progressEventSchema.safeParse({
+    id: 8,
+    kind: "chain_of_thought",
+    message: "private reasoning",
+    data: {},
+    createdAt: new Date().toISOString(),
+  }).success, false);
 });
 
 test("structured shortlist validation rejects malformed result shape", () => {
