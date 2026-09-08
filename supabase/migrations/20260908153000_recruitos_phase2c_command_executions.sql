@@ -1,5 +1,6 @@
 -- RecruitOS Phase 2C: durable, user-owned command executions and operational progress.
 -- Read-only/preparatory execution only; no hiring decisions are mutated by these tables.
+-- Execution and event writes are server-owned and use the service-role client.
 
 create table if not exists public.recruitos_command_executions (
   id uuid primary key default gen_random_uuid(),
@@ -69,30 +70,8 @@ create policy "Users can view their own RecruitOS command executions"
   on public.recruitos_command_executions for select
   using (user_id = auth.uid());
 
-create policy "Users can create their own RecruitOS command executions"
-  on public.recruitos_command_executions for insert
-  with check (
-    user_id = auth.uid()
-    and (scope_job_id is null or exists (
-      select 1 from public.jobs j where j.id = scope_job_id and j.user_id = auth.uid()
-    ))
-    and (resolved_job_id is null or exists (
-      select 1 from public.jobs j where j.id = resolved_job_id and j.user_id = auth.uid()
-    ))
-  );
-
-create policy "Users can update their own RecruitOS command executions"
-  on public.recruitos_command_executions for update
-  using (user_id = auth.uid())
-  with check (
-    user_id = auth.uid()
-    and (scope_job_id is null or exists (
-      select 1 from public.jobs j where j.id = scope_job_id and j.user_id = auth.uid()
-    ))
-    and (resolved_job_id is null or exists (
-      select 1 from public.jobs j where j.id = resolved_job_id and j.user_id = auth.uid()
-    ))
-  );
+-- No authenticated INSERT/UPDATE policy is created for executions.
+-- Trusted server routes write through the service-role client after explicit auth/ownership checks.
 
 drop policy if exists "Users can view their own RecruitOS command events" on public.recruitos_command_events;
 drop policy if exists "Users can create their own RecruitOS command events" on public.recruitos_command_events;
@@ -107,12 +86,5 @@ create policy "Users can view their own RecruitOS command events"
     )
   );
 
-create policy "Users can create their own RecruitOS command events"
-  on public.recruitos_command_events for insert
-  with check (
-    user_id = auth.uid()
-    and exists (
-      select 1 from public.recruitos_command_executions e
-      where e.id = execution_id and e.user_id = auth.uid()
-    )
-  );
+-- No authenticated INSERT policy is created for events.
+-- Progress events are appended only by trusted server-side service-role code.
