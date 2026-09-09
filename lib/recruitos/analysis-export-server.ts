@@ -1,0 +1,78 @@
+import "server-only";
+
+import { executionResultSchema, type ExecutionResult } from "@/lib/recruitos/command";
+import { requireAuthenticatedUser } from "@/lib/supabase/auth";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+
+export const ANALYSIS_DISCLAIMER = "Decision support only. RecruitOS has not rejected, advanced, contacted, or otherwise changed any candidate. Stored match scores are not hiring probabilities; the recruiter remains responsible for hiring decisions.";
+
+type ExportData = {
+  commandText: string;
+  completedAt: string;
+  result: ExecutionResult;
+};
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  })[character]!);
+}
+
+function list(items: string[], empty: string) {
+  if (!items.length) return `<p>${escapeHtml(empty)}</p>`;
+  return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+}
+
+function candidateSection(candidate: ExecutionResult["candidates"][number]) {
+  const concerns = [...candidate.concerns, ...candidate.missingSkills];
+  return `<section class="candidate">
+    <div class="candidate-head"><div><span class="rank">#${candidate.rank}</span><h2>${escapeHtml(candidate.name || candidate.email || "Unnamed candidate")}</h2>${candidate.email && candidate.name ? `<p>${escapeHtml(candidate.email)}</p>` : ""}</div><div class="score"><strong>${candidate.matchScore}/100</strong><span>Stored match score · not a hiring probability</span></div></div>
+    ${candidate.summary ? `<p class="summary">${escapeHtml(candidate.summary)}</p>` : ""}
+    <div class="columns"><div><h3>Evidence</h3>${list(candidate.evidence, "No additional evidence summary stored.")}</div><div><h3>Strengths</h3>${list(candidate.strengths, "No structured strengths stored.")}</div><div><h3>Concerns / gaps</h3>${list(concerns, "No structured concerns stored.")}</div></div>
+    <p class="status">Recruiter status: ${escapeHtml(candidate.recruiterStatus ?? "not set")}</p>
+  </section>`;
+}
+
+export function renderAnalysisHtml(data: ExportData) {
+  const { result } = data;
+  const prepared = new Date(data.completedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RecruitOS analysis · ${escapeHtml(result.job.title)}</title><style>
+  :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#171717;background:#fff}*{box-sizing:border-box}body{margin:0;padding:40px}main{max-width:960px;margin:0 auto}header{border-bottom:1px solid #ddd;padding-bottom:24px;margin-bottom:24px}.brand{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.muted,p,li{color:#555;line-height:1.55}h1{font-size:30px;margin:8px 0}h2{font-size:20px;margin:0}.meta{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}.metric{border:1px solid #ddd;border-radius:10px;padding:14px}.metric span{display:block;font-size:12px;color:#666}.metric strong{font-size:24px}.command{background:#f6f6f6;border-radius:10px;padding:16px}.candidate{page-break-inside:avoid;border-top:1px solid #ddd;padding:24px 0}.candidate-head{display:flex;justify-content:space-between;gap:24px}.rank{font-size:13px;font-weight:700}.score{text-align:right}.score strong,.score span{display:block}.score strong{font-size:24px}.score span{font-size:11px;color:#666}.summary{max-width:760px}.columns{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.columns h3{font-size:13px}.columns ul{padding-left:18px}.status{font-size:12px;text-transform:capitalize}.disclaimer{margin-top:24px;padding:16px;border:1px solid #ddd;border-radius:10px;font-size:12px}@media(max-width:720px){body{padding:20px}.meta,.columns{grid-template-columns:1fr}.candidate-head{display:block}.score{text-align:left;margin-top:12px}}@media print{body{padding:0}.candidate{break-inside:avoid}}
+  </style></head><body><main><header><div class="brand">RecruitOS</div><h1>${escapeHtml(result.job.title)} analysis</h1><p class="muted">Prepared ${escapeHtml(prepared)} UTC</p></header>
+  <div class="command"><strong>Request</strong><p>${escapeHtml(data.commandText)}</p></div>
+  <div class="meta"><div class="metric"><span>Applicants considered</span><strong>${result.consideredCount}</strong></div><div class="metric"><span>Existing assessments</span><strong>${result.reusedAnalysisCount}</strong></div><div class="metric"><span>New assessments</span><strong>${result.generatedAnalysisCount}</strong></div><div class="metric"><span>Prepared candidates</span><strong>${result.rankedCount}</strong></div></div>
+  ${result.partial ? `<p class="muted">Partial result: ${result.analysisFailureCount} applicant assessment${result.analysisFailureCount === 1 ? "" : "s"} could not be completed. The ranking uses only available validated evidence.</p>` : ""}
+  ${result.candidates.map(candidateSection).join("")}
+  <div class="disclaimer">${escapeHtml(ANALYSIS_DISCLAIMER)}</div></main></body></html>`;
+}
+
+export function safeAnalysisFilename(jobTitle: string) {
+  const slug = jobTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "analysis";
+  return `recruitos-${slug}-analysis.html`;
+}
+
+export async function getOwnedAnalysisExport(executionId: string) {
+  const user = await requireAuthenticatedUser();
+  const { data, error } = await supabaseAdmin
+    .from("recruitos_command_executions")
+    .select("id, status, command_text, result, completed_at")
+    .eq("id", executionId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) return { ok: false as const, status: 500, error: "RecruitOS could not prepare this analysis download." };
+  if (!data) return { ok: false as const, status: 404, error: "Analysis not found." };
+  if (data.status !== "completed" || !data.completed_at) return { ok: false as const, status: 409, error: "This analysis is not complete yet." };
+  const parsed = executionResultSchema.safeParse(data.result);
+  if (!parsed.success) return { ok: false as const, status: 409, error: "This completed analysis does not contain a valid structured result." };
+
+  return {
+    ok: true as const,
+    filename: safeAnalysisFilename(parsed.data.job.title),
+    html: renderAnalysisHtml({ commandText: data.command_text, completedAt: data.completed_at, result: parsed.data }),
+  };
+}
