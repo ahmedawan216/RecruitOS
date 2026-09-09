@@ -377,6 +377,9 @@ export async function advanceSemanticFollowUp(userId: string, execution: DbRow) 
           })),
         });
 
+    const beforeCommit = await getOwnedExecution(userId, executionId);
+    if (!beforeCommit || beforeCommit.status === "cancelled") return;
+
     await updateOwnedExecution(userId, executionId, {
       status: "completed",
       stage: pending.data.intent === "skill_focus" ? "followup_skill_focus_ready" : "followup_refocus_ready",
@@ -388,6 +391,8 @@ export async function advanceSemanticFollowUp(userId: string, execution: DbRow) 
     await appendEvent(userId, executionId, "completed", pending.data.intent === "skill_focus" ? `Focused ${pending.data.focus} evidence ready` : `Analytical ${pending.data.focus} refocus ready`, { followUp: pending.data.intent });
   } catch (error) {
     console.error("RecruitOS bounded follow-up analysis failed:", error instanceof Error ? { message: error.message } : { message: "unknown" });
+    const beforeRecovery = await getOwnedExecution(userId, executionId).catch(() => null);
+    if (!beforeRecovery || beforeRecovery.status === "cancelled") return;
     await updateOwnedExecution(userId, executionId, {
       status: "completed",
       stage: "followup_recovered",
