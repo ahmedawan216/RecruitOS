@@ -132,6 +132,13 @@ test("semantic evidence analysis is bounded, does not re-run resumes, and reject
   assert.match(followUpServer, /FOLLOW_UP_EVIDENCE_REFERENCE_INVALID/);
 });
 
+test("semantic follow-up cancellation is rechecked after provider work before result or recovery persistence", () => {
+  assert.match(followUpServer, /const beforeCommit = await getOwnedExecution\(userId, executionId\)/);
+  assert.match(followUpServer, /if \(!beforeCommit \|\| beforeCommit\.status === "cancelled"\) return/);
+  assert.match(followUpServer, /const beforeRecovery = await getOwnedExecution\(userId, executionId\)\.catch\(\(\) => null\)/);
+  assert.match(followUpServer, /if \(!beforeRecovery \|\| beforeRecovery\.status === "cancelled"\) return/);
+});
+
 test("malformed model output restores the previous structured result rather than exposing provider internals", () => {
   assert.match(followUpServer, /FOLLOW_UP_MALFORMED_MODEL_OUTPUT/);
   assert.match(followUpServer, /result: prior\.data/);
