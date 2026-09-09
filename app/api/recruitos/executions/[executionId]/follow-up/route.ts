@@ -16,7 +16,7 @@ export async function POST(request: Request, { params }: Context) {
     const actionParse = parseCandidateStatusActionCommand(validated.data.commandText);
     const result = actionParse.ok || actionParse.code !== "NOT_STATUS_ACTION"
       ? await beginCandidateStatusProposal(executionId, validated.data.commandText, validated.data.idempotencyKey)
-      : await beginContextualFollowUp(executionId, validated.data);
+      : await beginContextualFollowUp(executionId, body);
 
     if (!result.ok) return NextResponse.json({ error: result.error, code: result.code }, { status: result.status });
     return NextResponse.json(result);
