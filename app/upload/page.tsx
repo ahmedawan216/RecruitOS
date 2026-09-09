@@ -1,23 +1,9 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 
-import UploadPageClient from "./upload-page-client";
+type Props = { searchParams: Promise<{ jobId?: string | string[] }> };
 
-export default function UploadPage() {
-  return (
-    <Suspense
-      fallback={
-        <main className="min-h-screen bg-bg px-5 pb-20 pt-28 sm:px-8">
-          <div className="mx-auto max-w-wrap">
-            <div className="mx-auto max-w-[720px]">
-              <p className="text-sm text-ink-dim">
-                Loading RecruitOS...
-              </p>
-            </div>
-          </div>
-        </main>
-      }
-    >
-      <UploadPageClient />
-    </Suspense>
-  );
+export default async function UploadPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const jobId = Array.isArray(params.jobId) ? params.jobId[0] : params.jobId;
+  redirect(jobId ? `/dashboard/agents/recruitos/analyze?jobId=${encodeURIComponent(jobId)}` : "/dashboard/agents/recruitos/analyze");
 }
