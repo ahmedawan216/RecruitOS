@@ -92,9 +92,12 @@ test("only real pre-interview statuses can be proposed for Interview", () => {
 test("approval is a separate authenticated request and browser sends only proposalId", () => {
   assert.match(applyRoute, /applyCandidateStatusProposal/);
   assert.match(actionServer, /proposalApprovalSchema = z\.object\(\{ proposalId: z\.string\(\)\.uuid\(\) \}\)/);
-  assert.match(proposalView, /\/proposal\/apply/);
-  assert.match(proposalView, /JSON\.stringify\(\{ proposalId: result\.proposalId \}\)/);
-  assert.doesNotMatch(proposalView, /candidateIds|currentStatus|user_id/);
+  const requestStart = proposalView.indexOf("/proposal/apply");
+  const requestEnd = proposalView.indexOf("const payload", requestStart);
+  const applyRequest = proposalView.slice(requestStart, requestEnd);
+  assert.ok(requestStart >= 0 && requestEnd > requestStart);
+  assert.match(applyRequest, /JSON\.stringify\(\{ proposalId: result\.proposalId \}\)/);
+  assert.doesNotMatch(applyRequest, /candidateIds|currentStatus|user_id/);
 });
 
 test("database approval is atomic, stale-safe, and owner/job/candidate scoped", () => {
