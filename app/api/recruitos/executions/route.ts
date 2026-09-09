@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { createCommandExecution, getLatestRecoverableExecution } from "@/lib/recruitos/execution-server";
+import { createCommandExecution } from "@/lib/recruitos/execution-server";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
+import { getLatestWorkspaceExecution } from "@/lib/recruitos/workspace-recovery-server";
 
 export async function GET() {
   try {
     const user = await requireAuthenticatedUser();
-    const execution = await getLatestRecoverableExecution(user.id);
+    const execution = await getLatestWorkspaceExecution(user.id);
     return NextResponse.json({ execution });
   } catch (error) {
     if (error instanceof Error && error.message === "AUTH_REQUIRED") {

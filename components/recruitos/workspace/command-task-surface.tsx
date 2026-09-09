@@ -2,30 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, ChevronDown, FileSearch, Loader2, RotateCcw, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, Download, FileSearch, Loader2, RotateCcw, X } from "lucide-react";
 
 import {
   canCancelExecution,
   isTerminalExecutionStatus,
   parseRecruitingCommand,
-  type ExecutionResult,
 } from "@/lib/recruitos/command";
 import { getWorkspaceSuggestions, type WorkspaceJob } from "@/lib/recruitos/workspace";
-
-type ExecutionSnapshot = {
-  id: string;
-  status: string;
-  stage: string;
-  commandText: string;
-  requestedCount: number;
-  requestedJobText: string | null;
-  resolvedJobId: string | null;
-  result: ExecutionResult | null;
-  errorCode: string | null;
-  errorMessage: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+import type { ExecutionSnapshot } from "@/lib/recruitos/workspace-recovery";
 
 type ProgressEvent = {
   id: number;
@@ -37,16 +22,18 @@ type ProgressEvent = {
 
 type DraftState = { text: string; jobId: string | null };
 
-export function CommandComposer({ jobs, contextJob, initialExecutionId }: { jobs: WorkspaceJob[]; contextJob?: WorkspaceJob; initialExecutionId?: string | null }) {
+export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: WorkspaceJob[]; contextJob?: WorkspaceJob; initialExecution?: ExecutionSnapshot | null }) {
   const [draft, setDraft] = useState<DraftState>({ text: "", jobId: null });
-  const [execution, setExecution] = useState<ExecutionSnapshot | null>(null);
+  const [execution, setExecution] = useState<ExecutionSnapshot | null>(initialExecution ?? null);
   const [events, setEvents] = useState<ProgressEvent[]>([]);
   const [cursor, setCursor] = useState(0);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const cursorRef = useRef(0);
+  const restoredExecutionRef = useRef<string | null>(null);
   const selectedJob = jobs.find((job) => job.id === draft.jobId);
   const suggestions = getWorkspaceSuggestions(selectedJob ?? contextJob);
   const parsedDraft = useMemo(() => parseRecruitingCommand(draft.text), [draft.text]);
@@ -90,15 +77,16 @@ export function CommandComposer({ jobs, contextJob, initialExecutionId }: { jobs
   }
 
   useEffect(() => {
-    if (!initialExecutionId || execution) return;
+    if (!initialExecution?.id || restoredExecutionRef.current === initialExecution.id) return;
+    restoredExecutionRef.current = initialExecution.id;
     let cancelled = false;
-    refreshExecution(initialExecutionId).catch((error) => {
+    refreshExecution(initialExecution.id).catch((error) => {
       if (!cancelled) setSubmissionError(error instanceof Error ? error.message : "Recent task could not be restored.");
     });
     return () => { cancelled = true; };
-    // execution intentionally excluded: this only restores once on mount.
+    // refreshExecution intentionally stays stable for this one-shot restoration.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialExecutionId]);
+  }, [initialExecution?.id]);
 
   useEffect(() => {
     if (!execution || isTerminalExecutionStatus(execution.status)) return;
@@ -181,14 +169,25 @@ export function CommandComposer({ jobs, contextJob, initialExecutionId }: { jobs
     }
   }
 
-  function resetWorkspace() {
-    setExecution(null);
-    setEvents([]);
+  async function resetWorkspace() {
+    if (!execution || !isTerminalExecutionStatus(execution.status) || isResetting) return;
+    setIsResetting(true);
     setSubmissionError(null);
-    cursorRef.current = 0;
-    setCursor(0);
-    setDraft({ text: "", jobId: contextJob?.id ?? null });
-    queueMicrotask(() => textareaRef.current?.focus());
+    try {
+      const response = await fetch(`/api/recruitos/executions/${execution.id}/dismiss`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "RecruitOS could not start a new task.");
+      setExecution(null);
+      setEvents([]);
+      cursorRef.current = 0;
+      setCursor(0);
+      setDraft({ text: "", jobId: contextJob?.id ?? null });
+      queueMicrotask(() => textareaRef.current?.focus());
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : "RecruitOS could not start a new task.");
+    } finally {
+      setIsResetting(false);
+    }
   }
 
   if (execution) {
@@ -207,9 +206,10 @@ export function CommandComposer({ jobs, contextJob, initialExecutionId }: { jobs
               </div>
               <p className="mt-3 max-w-3xl break-words text-[15px] leading-6 text-ink-dim">{execution.commandText}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {result && execution.status === "completed" ? <a href={`/api/recruitos/executions/${execution.id}/export`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink"><Download className="size-4" aria-hidden="true" />Download analysis</a> : null}
               {canCancelExecution(execution.status) ? <button type="button" onClick={cancelExecution} disabled={isCancelling} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink disabled:opacity-60"><X className="size-4" aria-hidden="true" />{isCancelling ? "Cancelling…" : "Cancel"}</button> : null}
-              {terminal ? <button type="button" onClick={resetWorkspace} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink"><RotateCcw className="size-4" aria-hidden="true" />New task</button> : null}
+              {terminal ? <button type="button" onClick={() => void resetWorkspace()} disabled={isResetting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink disabled:opacity-60"><RotateCcw className="size-4" aria-hidden="true" />{isResetting ? "Starting…" : "New task"}</button> : null}
             </div>
           </div>
 
