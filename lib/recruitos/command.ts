@@ -138,7 +138,7 @@ export function parseCandidateStatusActionCommand(text: string): CandidateStatus
     return { ok: false, code: "AMBIGUOUS_ACTION", message: "Specify the supported destination explicitly, for example: Move the strongest 3 candidates to interview." };
   }
 
-  const strongestMatch = commandText.match(/\b(?:the\s+)?(?:strongest|top|best)(?:\s+(\d{1,2}))?\s+(?:candidate|candidates|applicant|applicants)\b/i);
+  const strongestMatch = commandText.match(/\b(?:the\s+)?(?:strongest|top|best)(?:\s+(\d{1,2}))?(?:\s+(?:candidate|candidates|applicant|applicants))?\b/i);
   if (strongestMatch) {
     const count = strongestMatch[1] ? Number(strongestMatch[1]) : 1;
     if (!Number.isInteger(count) || count < 1 || count > MAX_STATUS_ACTION_COUNT) {
