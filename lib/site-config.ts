@@ -1,7 +1,7 @@
 export const siteConfig = {
   name: "RecruitOS",
   url: process.env.NEXT_PUBLIC_SITE_URL,
-  title: "RecruitOS — AI Resume Screening for Recruiters",
+  title: "RecruitOS | Operational recruiting workspace",
   description:
-    "RecruitOS helps hiring teams screen resumes, understand candidate fit, and manage recruiting workflows while keeping people in control.",
+    "RecruitOS helps recruiters work across jobs, candidates, resume analysis, contextual commands, and human-reviewed recruiting actions in one workspace.",
 } as const;
