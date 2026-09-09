@@ -118,7 +118,7 @@ test("Phase 2D reuses one durable execution and preserves the original shortlist
   assert.match(followUpServer, /phase2dPriorResult/);
   assert.match(followUpServer, /phase2dPendingFollowUp/);
   assert.match(followUpServer, /from\("recruitos_command_executions"\)[\s\S]*?\.update\(/);
-  assert.doesNotMatch(followUpServer, /from\("recruitos_command_executions"\)[\s\S]*?\.insert\(/);
+  assert.doesNotMatch(followUpServer, /from\("recruitos_command_executions"\)\s*\.insert\(/);
 });
 
 test("semantic evidence analysis is bounded, does not re-run resumes, and rejects authority or candidate-scope expansion", () => {
