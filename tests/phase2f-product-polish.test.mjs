@@ -53,7 +53,7 @@ test("candidate product surfaces explicitly avoid probability framing", () => {
   const detail = read("app/dashboard/agents/recruitos/candidates/[candidateId]/page.tsx");
   const compare = read("app/dashboard/agents/recruitos/candidates/compare/page.tsx");
   const pipeline = read("app/dashboard/agents/recruitos/jobs/[jobId]/candidate-pipeline.tsx");
-  for (const source of [candidates, detail, compare, pipeline]) assert.match(source, /not (?:a )?hiring probability|not probability/i);
+  for (const source of [candidates, detail, compare, pipeline]) assert.match(source, /not (?:a )?hiring probabilit(?:y|ies)|not probability/i);
 });
 
 test("Phase 2E reviewed-action migration remains intact and service-role only", () => {
