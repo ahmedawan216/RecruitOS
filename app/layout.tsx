@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Inter, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Sans, Public_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PostHogProvider } from "@/components/providers/posthog-provider";
@@ -9,29 +9,19 @@ import { Footer } from "@/components/layout/footer";
 
 import "./globals.css";
 
-// The shared header reads the authenticated user's cookies to decide whether
-// to render "Sign in" or "Sign out". The root layout therefore depends on
-// request-time auth state and must not be prerendered without a request.
 export const dynamic = "force-dynamic";
 
-const spaceGrotesk = Space_Grotesk({
+const publicSans = Public_Sans({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-body",
   display: "swap",
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
+const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-mono",
+  weight: ["500", "600"],
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -44,11 +34,11 @@ export const metadata: Metadata = {
   description: siteConfig.description,
   keywords: [
     "RecruitOS",
-    "AI recruiting",
-    "AI hiring",
-    "resume screening",
-    "candidate matching",
-    "recruitment software",
+    "recruiting workspace",
+    "candidate review",
+    "resume analysis",
+    "recruiting operations",
+    "human reviewed recruiting actions",
   ],
   openGraph: {
     title: siteConfig.title,
@@ -66,37 +56,25 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#08090c",
-  colorScheme: "dark",
+  themeColor: "#F4F5F6",
+  colorScheme: "light",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      data-scroll-behavior="smooth"
-      className={`${spaceGrotesk.variable} ${inter.variable} ${ibmPlexMono.variable}`}
-    >
+    <html lang="en" data-scroll-behavior="smooth" className={`${publicSans.variable} ${ibmPlexSans.variable}`}>
       <body>
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-black"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-ink focus:shadow-workspace"
         >
           Skip to content
         </a>
-
         <Header />
-
         <PostHogProvider>
           <div id="main-content">{children}</div>
         </PostHogProvider>
-
         <Footer />
-
         <Analytics />
         <SpeedInsights />
       </body>

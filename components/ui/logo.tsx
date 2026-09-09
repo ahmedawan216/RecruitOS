@@ -1,28 +1,20 @@
 import Link from "next/link";
-
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
   className?: string;
+  showEndorsement?: boolean;
 }
 
-export function Logo({ className }: LogoProps) {
+export function Logo({ className, showEndorsement = true }: LogoProps) {
   return (
     <Link
       href="/"
-      className={cn(
-        "flex items-center gap-3 font-display text-base font-semibold text-ink",
-        className
-      )}
-      aria-label="RecruitOS — home"
+      className={cn("inline-flex min-h-11 items-center gap-2 rounded-md text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent", className)}
+      aria-label="RecruitOS home"
     >
-      <span
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-accent/30 bg-accent/[0.1] font-mono text-xs text-accent"
-        aria-hidden="true"
-      >
-        R
-      </span>
-      <span>RecruitOS</span>
+      <span className="font-display text-[17px] font-semibold tracking-[-0.02em]">RecruitOS</span>
+      {showEndorsement ? <span className="hidden text-[11px] font-medium text-ink-faint sm:inline">by OperationOS</span> : null}
     </Link>
   );
 }

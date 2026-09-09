@@ -2,7 +2,7 @@
   "name": "recruitos",
   "version": "1.0.0",
   "private": true,
-  "description": "RecruitOS AI-assisted recruiting workspace.",
+  "description": "RecruitOS operational recruiting workspace.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
