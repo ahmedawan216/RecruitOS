@@ -1,16 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, ChevronDown, Download, FileSearch, Loader2, RotateCcw, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChevronDown, Download, FileSearch, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 
 import {
   canCancelExecution,
   isTerminalExecutionStatus,
+  parseFollowUpCommand,
   parseRecruitingCommand,
 } from "@/lib/recruitos/command";
 import { getWorkspaceSuggestions, type WorkspaceJob } from "@/lib/recruitos/workspace";
 import type { ExecutionSnapshot } from "@/lib/recruitos/workspace-recovery";
+import { StructuredResultView, resultCandidateCount, resultHeading } from "@/components/recruitos/workspace/structured-result-view";
 
 type ProgressEvent = {
   id: number;
@@ -24,23 +25,28 @@ type DraftState = { text: string; jobId: string | null };
 
 export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: WorkspaceJob[]; contextJob?: WorkspaceJob; initialExecution?: ExecutionSnapshot | null }) {
   const [draft, setDraft] = useState<DraftState>({ text: "", jobId: null });
+  const [followUpDraft, setFollowUpDraft] = useState("");
   const [execution, setExecution] = useState<ExecutionSnapshot | null>(initialExecution ?? null);
   const [events, setEvents] = useState<ProgressEvent[]>([]);
   const [cursor, setCursor] = useState(0);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFollowingUp, setIsFollowingUp] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const followUpRef = useRef<HTMLTextAreaElement>(null);
   const cursorRef = useRef(0);
   const restoredExecutionRef = useRef<string | null>(null);
   const selectedJob = jobs.find((job) => job.id === draft.jobId);
   const suggestions = getWorkspaceSuggestions(selectedJob ?? contextJob);
   const parsedDraft = useMemo(() => parseRecruitingCommand(draft.text), [draft.text]);
+  const parsedFollowUp = useMemo(() => parseFollowUpCommand(followUpDraft), [followUpDraft]);
   const canSubmit = parsedDraft.ok && !isSubmitting && !execution;
+  const canSubmitFollowUp = Boolean(execution?.result) && execution?.status === "completed" && parsedFollowUp.ok && !isFollowingUp;
 
   useEffect(() => {
-    const textarea = textareaRef.current;
+    const textarea = execution ? followUpRef.current : textareaRef.current;
     if (!textarea) return;
     const resize = () => {
       textarea.style.height = "auto";
@@ -56,7 +62,7 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
     });
     if (textarea.parentElement) observer.observe(textarea.parentElement);
     return () => observer.disconnect();
-  }, [draft.text]);
+  }, [draft.text, followUpDraft, execution?.id]);
 
   async function refreshExecution(executionId: string) {
     const response = await fetch(`/api/recruitos/executions/${executionId}?after=${cursorRef.current}`, { cache: "no-store" });
@@ -84,7 +90,6 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
       if (!cancelled) setSubmissionError(error instanceof Error ? error.message : "Recent task could not be restored.");
     });
     return () => { cancelled = true; };
-    // refreshExecution intentionally stays stable for this one-shot restoration.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialExecution?.id]);
 
@@ -115,7 +120,6 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-    // cursor is tracked via cursorRef to avoid restarting the runner for every event page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [execution?.id, execution?.status]);
 
@@ -135,11 +139,7 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
       const response = await fetch("/api/recruitos/executions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          commandText: draft.text,
-          jobId: draft.jobId,
-          idempotencyKey: crypto.randomUUID(),
-        }),
+        body: JSON.stringify({ commandText: draft.text, jobId: draft.jobId, idempotencyKey: crypto.randomUUID() }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "RecruitOS could not create the task.");
@@ -149,6 +149,28 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
       setSubmissionError(error instanceof Error ? error.message : "RecruitOS could not create the task.");
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function submitFollowUp() {
+    if (!execution || !canSubmitFollowUp) return;
+    setIsFollowingUp(true);
+    setSubmissionError(null);
+    try {
+      const response = await fetch(`/api/recruitos/executions/${execution.id}/follow-up`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandText: followUpDraft, idempotencyKey: crypto.randomUUID() }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "RecruitOS could not apply that follow-up.");
+      setExecution(payload.execution);
+      setFollowUpDraft("");
+      await refreshExecution(execution.id);
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : "RecruitOS could not apply that follow-up.");
+    } finally {
+      setIsFollowingUp(false);
     }
   }
 
@@ -179,6 +201,7 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
       if (!response.ok) throw new Error(payload.error || "RecruitOS could not start a new task.");
       setExecution(null);
       setEvents([]);
+      setFollowUpDraft("");
       cursorRef.current = 0;
       setCursor(0);
       setDraft({ text: "", jobId: contextJob?.id ?? null });
@@ -193,18 +216,28 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
   if (execution) {
     const terminal = isTerminalExecutionStatus(execution.status);
     const result = execution.result;
+    const followUpWorking = execution.status === "running" && execution.stage === "followup_semantic_analysis";
+    const latestProgress = [...events].reverse().find((event) => event.kind === "progress" || event.kind === "status");
+    const followUpSuggestions = result ? [
+      ...(result.kind !== "candidate_concerns" ? ["Show me only the concerns."] : []),
+      ...(resultCandidateCount(result) >= 2 && result.kind !== "candidate_comparison" ? ["Compare the strongest candidates."] : []),
+      ...(result.kind === "candidate_shortlist" && result.candidates[0]?.strengths[0] ? [`Which candidates have the strongest ${result.candidates[0].strengths[0]} experience?`] : []),
+      ...(result.kind !== "candidate_shortlist" ? ["Show the full shortlist."] : []),
+    ].slice(0, 4) : [];
+
     return (
-      <section aria-labelledby="command-task-label" className="ph-no-capture" data-workspace-state={result ? "result" : terminal ? execution.status : "live-work"}>
+      <section aria-labelledby="command-task-label" className="ph-no-capture" data-workspace-state={followUpWorking ? "live-work" : result ? "result" : terminal ? execution.status : "live-work"}>
         <div className="command-surface overflow-hidden">
           <div className="flex flex-col gap-4 px-5 pb-5 pt-6 sm:flex-row sm:items-start sm:justify-between sm:px-7 sm:pt-7">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 id="command-task-label" className="font-display text-xl font-semibold leading-7 text-ink">{result ? `${result.job.title} shortlist` : "RecruitOS task"}</h2>
+                <h2 id="command-task-label" className="font-display text-xl font-semibold leading-7 text-ink">{result ? resultHeading(result) : "RecruitOS task"}</h2>
                 <span className={`rounded-md px-2.5 py-1 text-[12px] font-medium ${execution.status === "completed" ? "bg-success-soft text-success" : execution.status === "failed" || execution.status === "cancelled" || execution.status === "clarification_required" ? "bg-surface-2 text-ink-dim" : "bg-accent-soft text-accent"}`}>
-                  {execution.status === "clarification_required" ? "Needs scope" : execution.status.replaceAll("_", " ")}
+                  {followUpWorking ? "Refocusing" : execution.status === "clarification_required" ? "Needs scope" : execution.status.replaceAll("_", " ")}
                 </span>
               </div>
               <p className="mt-3 max-w-3xl break-words text-[15px] leading-6 text-ink-dim">{execution.commandText}</p>
+              {result ? <p className="mt-2 text-[13px] leading-5 text-ink-dim">Current scope · {result.job.title} · {resultCandidateCount(result)} candidate{resultCandidateCount(result) === 1 ? "" : "s"}</p> : null}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {result && execution.status === "completed" ? <a href={`/api/recruitos/executions/${execution.id}/export`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink"><Download className="size-4" aria-hidden="true" />Download analysis</a> : null}
@@ -215,101 +248,40 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
 
           {!result ? <div className="border-t border-border px-5 py-5 sm:px-7">
             {!terminal ? <div className="mb-4 flex items-center gap-2 text-sm font-medium text-accent"><Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /><span>Working on authorized workspace data</span></div> : null}
-            <ol aria-live="polite" className="space-y-3">
-              {events.length ? events.map((event) => <li key={event.id} className="flex items-start gap-3 text-sm leading-6">
-                <span className={`mt-2 size-1.5 shrink-0 rounded-full ${event.kind === "warning" || event.kind === "failed" ? "bg-warning" : event.kind === "completed" ? "bg-success" : "bg-accent"}`} aria-hidden="true" />
-                <span className={event.kind === "warning" ? "text-ink-dim" : "text-ink"}>{event.message}</span>
-              </li>) : <li className="text-sm text-ink-dim">Loading task progress…</li>}
-            </ol>
+            <ol aria-live="polite" className="space-y-3">{events.length ? events.map((event) => <li key={event.id} className="flex items-start gap-3 text-sm leading-6"><span className={`mt-2 size-1.5 shrink-0 rounded-full ${event.kind === "warning" || event.kind === "failed" ? "bg-warning" : event.kind === "completed" ? "bg-success" : "bg-accent"}`} aria-hidden="true" /><span className={event.kind === "warning" ? "text-ink-dim" : "text-ink"}>{event.message}</span></li>) : <li className="text-sm text-ink-dim">Loading task progress…</li>}</ol>
             {execution.errorMessage ? <div role="status" className="mt-5 rounded-lg border border-border bg-surface-2 p-4 text-sm leading-6 text-ink-dim">{execution.errorMessage}</div> : null}
             {submissionError ? <div role="alert" className="mt-4 text-sm leading-6 text-danger">{submissionError}</div> : null}
           </div> : <div className="border-t border-border">
-            <div className="grid gap-4 px-5 py-5 sm:grid-cols-4 sm:px-7">
-              <div><p className="text-xs text-ink-dim">Applicants considered</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{result.consideredCount}</p></div>
-              <div><p className="text-xs text-ink-dim">Existing assessments</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{result.reusedAnalysisCount}</p></div>
-              <div><p className="text-xs text-ink-dim">New assessments</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{result.generatedAnalysisCount}</p></div>
-              <div><p className="text-xs text-ink-dim">Prepared candidates</p><p className="mt-1 text-2xl font-semibold tabular-nums text-ink">{result.rankedCount}</p></div>
-            </div>
-            {result.partial ? <p className="border-t border-border px-5 py-3 text-[13px] leading-5 text-ink-dim sm:px-7">Partial result: {result.analysisFailureCount} applicant assessment{result.analysisFailureCount === 1 ? "" : "s"} could not be completed. The ranking uses only available validated evidence.</p> : null}
-            <ol className="divide-y divide-border">
-              {result.candidates.map((candidate) => <li key={candidate.candidateId} className="px-5 py-6 sm:px-7">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-3"><span className="font-mono text-sm text-accent">#{candidate.rank}</span><h3 className="break-words font-display text-lg font-semibold text-ink">{candidate.name || candidate.email || "Unnamed candidate"}</h3></div>
-                    {candidate.email && candidate.name ? <p className="mt-1 text-[13px] text-ink-dim">{candidate.email}</p> : null}
-                    {candidate.summary ? <p className="mt-3 max-w-3xl text-sm leading-6 text-ink-dim">{candidate.summary}</p> : null}
-                  </div>
-                  <div className="shrink-0 text-left sm:text-right"><p className="text-2xl font-semibold tabular-nums text-ink">{candidate.matchScore}/100</p><p className="mt-1 text-[11px] leading-4 text-ink-dim">Stored match score · not a hiring probability</p></div>
-                </div>
-                <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                  <div><p className="text-xs font-medium text-ink">Evidence</p><ul className="mt-2 space-y-1 text-[13px] leading-5 text-ink-dim">{candidate.evidence.length ? candidate.evidence.slice(0, 4).map((item) => <li key={item}>• {item}</li>) : <li>No additional evidence summary stored.</li>}</ul></div>
-                  <div><p className="text-xs font-medium text-ink">Strengths</p><p className="mt-2 text-[13px] leading-5 text-ink-dim">{candidate.strengths.length ? candidate.strengths.slice(0, 6).join(" · ") : "No structured strengths stored."}</p></div>
-                  <div><p className="text-xs font-medium text-ink">Concerns / gaps</p><p className="mt-2 text-[13px] leading-5 text-ink-dim">{[...candidate.concerns, ...candidate.missingSkills].slice(0, 6).join(" · ") || "No structured concerns stored."}</p></div>
-                </div>
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3"><p className="text-[12px] capitalize text-ink-dim">Recruiter status: {candidate.recruiterStatus ?? "not set"}</p><Link href={candidate.candidateHref} className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-accent">Inspect candidate <ArrowUpRight className="size-4" aria-hidden="true" /></Link></div>
-              </li>)}
-            </ol>
-            <div className="border-t border-border bg-bg px-5 py-4 text-[12px] leading-5 text-ink-dim sm:px-7">Decision support only. RecruitOS has not rejected, advanced, contacted, or otherwise changed any candidate.</div>
+            {followUpWorking ? <div className="border-b border-border bg-accent-soft px-5 py-4 sm:px-7" aria-live="polite"><div className="flex items-center gap-3 text-sm font-medium text-accent"><Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /><span>{latestProgress?.message ?? "Reviewing current shortlist evidence"}</span></div><p className="mt-1 pl-7 text-[12px] leading-5 text-ink-dim">The current result remains visible while RecruitOS performs this bounded analytical pass.</p></div> : null}
+            {execution.errorMessage ? <div role="status" className="border-b border-border bg-warning-soft px-5 py-4 text-sm leading-6 text-ink-dim sm:px-7">{execution.errorMessage}</div> : null}
+            <StructuredResultView result={result} />
+            <div className="border-t border-border bg-bg px-5 py-4 text-[12px] leading-5 text-ink-dim sm:px-7">Decision support only. RecruitOS has not rejected, advanced, contacted, scheduled, or otherwise changed any candidate.</div>
+
+            {execution.status === "completed" ? <div className="border-t border-border px-5 py-5 sm:px-7 sm:py-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="font-display text-base font-semibold text-ink">Continue this recruiting task</h3><p className="mt-1 text-[13px] leading-5 text-ink-dim">Your next command stays within the current {result.job.title} task and its {resultCandidateCount(result)} candidates.</p></div><span className="inline-flex items-center gap-2 self-start rounded-md bg-accent-soft px-2.5 py-1 text-[12px] font-medium text-accent"><Sparkles className="size-3.5" aria-hidden="true" />Current result context</span></div>
+              <div className="mt-4 rounded-lg border border-border bg-surface px-4 py-3">
+                <textarea ref={followUpRef} value={followUpDraft} rows={2} maxLength={1000} autoComplete="off" spellCheck aria-label="Contextual follow-up command" aria-describedby="followup-help followup-keyboard" placeholder="Show me only the concerns…" onChange={(event) => { setFollowUpDraft(event.target.value); setSubmissionError(null); }} onKeyDown={(event) => { if (!event.nativeEvent.isComposing && event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (canSubmitFollowUp) void submitFollowUp(); } }} className="ph-mask ph-no-capture ph-no-capture-input block min-h-[64px] max-h-[168px] w-full resize-none overflow-y-auto bg-transparent text-[15px] leading-6 text-ink outline-none placeholder:text-ink-dim focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent" />
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p id="followup-help" className={`text-[12px] leading-5 ${followUpDraft && !parsedFollowUp.ok ? "text-warning" : "text-ink-dim"}`}>{submissionError ?? (!followUpDraft ? "Focus, compare, inspect evidence, or restore the overview. Hiring actions remain unavailable." : parsedFollowUp.ok ? (parsedFollowUp.requiresSemanticAnalysis ? "This follow-up will run a bounded semantic evidence pass on the current candidate set." : "This follow-up uses the current stored result and does not re-analyze resumes.") : parsedFollowUp.message)}</p><button type="button" onClick={() => void submitFollowUp()} disabled={!canSubmitFollowUp} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">{isFollowingUp ? "Applying…" : "Apply follow-up"}{isFollowingUp ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowUpRight className="size-4" aria-hidden="true" />}</button></div>
+                <p id="followup-keyboard" className="sr-only">Enter inserts a new line. Control or Command plus Enter applies a supported follow-up to the current recruiting task.</p>
+              </div>
+              {followUpSuggestions.length ? <div className="mt-3 flex flex-wrap gap-2" aria-label="Suggested follow-ups">{followUpSuggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setFollowUpDraft(suggestion); setSubmissionError(null); queueMicrotask(() => followUpRef.current?.focus()); }} className="min-h-10 rounded-lg border border-border px-3 text-[13px] font-medium text-ink-dim hover:border-accent hover:text-accent">{suggestion}</button>)}</div> : null}
+            </div> : null}
           </div>}
         </div>
       </section>
     );
   }
 
-  const helpCopy = !draft.text
-    ? "Phase 2C can review and rank applicants for a job. No hiring status changes are performed."
-    : parsedDraft.ok
-      ? `Ready to prepare up to ${parsedDraft.value.requestedCount} candidates using authorized workspace evidence.`
-      : parsedDraft.message;
+  const helpCopy = !draft.text ? "Phase 2C can review and rank applicants for a job. No hiring status changes are performed." : parsedDraft.ok ? `Ready to prepare up to ${parsedDraft.value.requestedCount} candidates using authorized workspace evidence.` : parsedDraft.message;
 
   return (
     <section aria-labelledby="command-label" className="ph-no-capture ph-no-capture-input" data-workspace-state={draft.text ? "command-draft" : "idle"}>
       <div className="command-surface">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-6 sm:px-7 sm:pt-7">
-          <label id="command-label" htmlFor="workspace-command" className="font-display text-xl font-semibold leading-7 text-ink">Tell RecruitOS what you need</label>
-          <span className="inline-flex items-center gap-2 rounded-md bg-accent-soft px-2.5 py-1 text-[13px] font-medium text-accent"><span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />Real execution</span>
-        </div>
-        <div className="px-5 pb-5 pt-5 sm:px-7">
-          <textarea ref={textareaRef} id="workspace-command" name="command" value={draft.text} rows={2} maxLength={4000} autoComplete="off" spellCheck
-            aria-describedby="command-availability command-keyboard" placeholder="Review applicants for Senior Accountant and prepare the strongest 8…"
-            onChange={(event) => updateDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (!event.nativeEvent.isComposing && event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-                event.preventDefault();
-                if (canSubmit) void submit();
-              }
-            }}
-            className="ph-mask ph-no-capture ph-no-capture-input block min-h-[84px] max-h-[168px] w-full resize-none overflow-y-auto rounded-sm bg-transparent py-2 text-base leading-7 text-ink outline-none placeholder:text-ink-dim focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
-          />
-        </div>
-        <div className="flex flex-col gap-3 px-5 pb-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-          <div className="flex min-w-0 max-w-full items-center gap-3 sm:w-[60%]">
-            <label htmlFor="command-scope" className="shrink-0 text-[13px] text-ink-dim">Scope</label>
-            <div className="relative min-w-0 flex-1">
-              <select id="command-scope" value={draft.jobId ?? ""} onChange={(event) => updateDraft(draft.text, event.target.value || null)} className="min-h-11 w-full min-w-0 appearance-none rounded-lg bg-accent-soft py-2 pl-3 pr-8 text-sm font-medium text-accent">
-                <option value="">Resolve from command</option>
-                {jobs.length ? <optgroup label="Recent and current jobs">{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</optgroup> : null}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-3.5 size-4 text-accent" aria-hidden="true" />
-            </div>
-          </div>
-          <button type="button" onClick={() => void submit()} disabled={!canSubmit} aria-describedby="command-availability" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 self-end rounded-lg bg-accent px-5 text-sm font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40">{isSubmitting ? "Starting…" : "Run task"} {isSubmitting ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowUpRight className="size-4" aria-hidden="true" />}</button>
-        </div>
-        <div className="px-5 pb-5 text-[13px] leading-[18px] text-ink-dim sm:px-7">
-          <p id="command-availability" className={!parsedDraft.ok && draft.text ? "text-warning" : undefined}>{submissionError ?? helpCopy}</p>
-          <p id="command-keyboard" className="sr-only">Enter inserts a new line. Control or Command plus Enter runs a supported task.</p>
-        </div>
-        <div className="rounded-b-xl border-t border-border bg-bg px-3 py-3 sm:px-5">
-          <p className="px-2 pb-2 text-[13px] font-medium text-ink-dim">Suggested tasks <span className="font-normal">· select to edit</span></p>
-          <div className="flex flex-col gap-1">
-            {suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => {
-              updateDraft(suggestion, selectedJob?.id ?? contextJob?.id ?? null);
-              textareaRef.current?.focus();
-            }} className="group flex min-h-12 w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-[15px] leading-[22px] text-ink transition-colors duration-[180ms] ease-out hover:bg-accent-soft">
-              <FileSearch className="size-[18px] shrink-0 text-ink-dim" aria-hidden="true" /><span className="min-w-0 flex-1 break-words">{suggestion}</span><ArrowDownLeft className="size-4 shrink-0 text-accent transition-transform duration-[180ms] group-hover:translate-y-0.5 motion-reduce:transform-none" aria-hidden="true" />
-            </button>)}
-          </div>
-        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-6 sm:px-7 sm:pt-7"><label id="command-label" htmlFor="workspace-command" className="font-display text-xl font-semibold leading-7 text-ink">Tell RecruitOS what you need</label><span className="inline-flex items-center gap-2 rounded-md bg-accent-soft px-2.5 py-1 text-[13px] font-medium text-accent"><span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />Real execution</span></div>
+        <div className="px-5 pb-5 pt-5 sm:px-7"><textarea ref={textareaRef} id="workspace-command" name="command" value={draft.text} rows={2} maxLength={4000} autoComplete="off" spellCheck aria-describedby="command-availability command-keyboard" placeholder="Review applicants for Senior Accountant and prepare the strongest 8…" onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (!event.nativeEvent.isComposing && event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (canSubmit) void submit(); } }} className="ph-mask ph-no-capture ph-no-capture-input block min-h-[84px] max-h-[168px] w-full resize-none overflow-y-auto rounded-sm bg-transparent py-2 text-base leading-7 text-ink outline-none placeholder:text-ink-dim focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent" /></div>
+        <div className="flex flex-col gap-3 px-5 pb-5 sm:flex-row sm:items-center sm:justify-between sm:px-7"><div className="flex min-w-0 max-w-full items-center gap-3 sm:w-[60%]"><label htmlFor="command-scope" className="shrink-0 text-[13px] text-ink-dim">Scope</label><div className="relative min-w-0 flex-1"><select id="command-scope" value={draft.jobId ?? ""} onChange={(event) => updateDraft(draft.text, event.target.value || null)} className="min-h-11 w-full min-w-0 appearance-none rounded-lg bg-accent-soft py-2 pl-3 pr-8 text-sm font-medium text-accent"><option value="">Resolve from command</option>{jobs.length ? <optgroup label="Recent and current jobs">{jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</optgroup> : null}</select><ChevronDown className="pointer-events-none absolute right-3 top-3.5 size-4 text-accent" aria-hidden="true" /></div></div><button type="button" onClick={() => void submit()} disabled={!canSubmit} aria-describedby="command-availability" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 self-end rounded-lg bg-accent px-5 text-sm font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40">{isSubmitting ? "Starting…" : "Run task"} {isSubmitting ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowUpRight className="size-4" aria-hidden="true" />}</button></div>
+        <div className="px-5 pb-5 text-[13px] leading-[18px] text-ink-dim sm:px-7"><p id="command-availability" className={!parsedDraft.ok && draft.text ? "text-warning" : undefined}>{submissionError ?? helpCopy}</p><p id="command-keyboard" className="sr-only">Enter inserts a new line. Control or Command plus Enter runs a supported task.</p></div>
+        <div className="rounded-b-xl border-t border-border bg-bg px-3 py-3 sm:px-5"><p className="px-2 pb-2 text-[13px] font-medium text-ink-dim">Suggested tasks <span className="font-normal">· select to edit</span></p><div className="flex flex-col gap-1">{suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { updateDraft(suggestion, selectedJob?.id ?? contextJob?.id ?? null); textareaRef.current?.focus(); }} className="group flex min-h-12 w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-[15px] leading-[22px] text-ink transition-colors duration-[180ms] ease-out hover:bg-accent-soft"><FileSearch className="size-[18px] shrink-0 text-ink-dim" aria-hidden="true" /><span className="min-w-0 flex-1 break-words">{suggestion}</span><ArrowDownLeft className="size-4 shrink-0 text-accent transition-transform duration-[180ms] group-hover:translate-y-0.5 motion-reduce:transform-none" aria-hidden="true" /></button>)}</div></div>
       </div>
       <span className="sr-only" aria-hidden="true">{cursor}</span>
     </section>
