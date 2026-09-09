@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { advanceCommandExecution } from "@/lib/recruitos/execution-server";
+import { advanceContextualFollowUpIfPending } from "@/lib/recruitos/follow-up-advance-server";
 
 type Context = { params: Promise<{ executionId: string }> };
 
 export async function POST(_request: Request, { params }: Context) {
   try {
     const { executionId } = await params;
-    const result = await advanceCommandExecution(executionId);
+    const contextual = await advanceContextualFollowUpIfPending(executionId);
+    const result = contextual.handled ? contextual.result : await advanceCommandExecution(executionId);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
     return NextResponse.json(result);
   } catch (error) {

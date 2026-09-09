@@ -4,13 +4,21 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 
-const require = createRequire(import.meta.url);
-const source = readFileSync(new URL("../lib/recruitos/command.ts", import.meta.url), "utf8");
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
-});
-const commandModule = { exports: {} };
-new Function("exports", "module", "require", compiled.outputText)(commandModule.exports, commandModule, require);
+const nodeRequire = createRequire(import.meta.url);
+
+function transpile(relativePath, requireMap = {}) {
+  const source = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  });
+  const loadedModule = { exports: {} };
+  const localRequire = (id) => id in requireMap ? requireMap[id] : nodeRequire(id);
+  new Function("exports", "module", "require", compiled.outputText)(loadedModule.exports, loadedModule, localRequire);
+  return loadedModule.exports;
+}
+
+const resultModule = transpile("../lib/recruitos/result.ts");
+const commandModule = transpile("../lib/recruitos/command.ts", { "@/lib/recruitos/result": resultModule });
 const {
   canCancelExecution,
   commandSubmissionSchema,
@@ -20,7 +28,7 @@ const {
   progressEventSchema,
   resolveJobReference,
   reviewAndRankIntentSchema,
-} = commandModule.exports;
+} = commandModule;
 
 const seniorAccountant = { id: "11111111-1111-4111-8111-111111111111", title: "Senior Accountant" };
 const staffAccountant = { id: "22222222-2222-4222-8222-222222222222", title: "Staff Accountant" };
