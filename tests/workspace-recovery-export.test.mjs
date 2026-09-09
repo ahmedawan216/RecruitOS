@@ -8,9 +8,9 @@ function loadPureModule(relativePath) {
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
   });
-  const module = { exports: {} };
-  new Function("exports", "module", "require", compiled.outputText)(module.exports, module, () => ({}));
-  return module.exports;
+  const loadedModule = { exports: {} };
+  new Function("exports", "module", "require", compiled.outputText)(loadedModule.exports, loadedModule, () => ({}));
+  return loadedModule.exports;
 }
 
 const recovery = loadPureModule("../lib/recruitos/workspace-recovery.ts");
@@ -103,7 +103,7 @@ test("analysis export is built from the real structured result and recruiter-fac
     "SAP",
     "Recruiter status: new",
     "Decision support only",
-  ]) assert.match(html, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  ]) assert.ok(html.includes(expected), expected);
 });
 
 test("analysis export excludes unsafe provider, prompt, reasoning, and database internals", () => {
