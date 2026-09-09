@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
 import type { ExecutionResult } from "@/lib/recruitos/result";
+import { ReviewedStatusAppliedView, ReviewedStatusProposalView } from "@/components/recruitos/workspace/reviewed-status-action-view";
 
 function CandidateLink({ href }: { href: string }) {
   return <Link href={href} className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-accent">Inspect candidate <ArrowUpRight className="size-4" aria-hidden="true" /></Link>;
@@ -49,19 +50,23 @@ function Refocus({ result }: { result: Extract<ExecutionResult, { kind: "candida
   return <><div className="px-5 py-4 text-[13px] leading-5 text-ink-dim sm:px-7">Analytical ordering focused on {result.focus}. This does not change the job requirements or any hiring status.</div>{result.insufficientEvidence ? <div className="border-t border-border bg-warning-soft px-5 py-4 text-sm leading-6 text-ink-dim sm:px-7">The stored candidate evidence does not reliably establish {result.focus}. Missing evidence is treated as uncertainty, not as negative evidence.</div> : null}<ol className="divide-y divide-border">{result.candidates.map((candidate) => <li key={candidate.candidateId} className="px-5 py-6 sm:px-7"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex items-start gap-3"><span className="font-mono text-sm text-accent">#{candidate.focusRank}</span><CandidateName name={candidate.name} email={candidate.email} /></div><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-dim"><span>Evidence strength: <span className="font-medium capitalize text-ink">{candidate.evidenceStrength}</span></span><span>Focus relevance: <span className="font-medium tabular-nums text-ink">{candidate.relevanceScore}/100</span></span><span>Original shortlist: #{candidate.originalRank}{candidate.movement ? ` · ${candidate.movement > 0 ? "up" : "down"} ${Math.abs(candidate.movement)}` : " · unchanged"}</span></div></div><StoredScore score={candidate.matchScore} /></div><div className="mt-4"><p className="text-xs font-medium text-ink">Relevant stored evidence</p>{candidate.relevantEvidence.length ? <ul className="mt-2 space-y-2 text-[13px] leading-5 text-ink-dim">{candidate.relevantEvidence.map((item) => <li key={item}>• {item}</li>)}</ul> : <EmptyEvidence>No reliable stored evidence was identified for this focus.</EmptyEvidence>}{candidate.uncertainty ? <p className="mt-3 text-[12px] leading-5 text-ink-dim">Uncertainty: {candidate.uncertainty}</p> : null}</div><div className="mt-5 flex justify-end"><CandidateLink href={candidate.candidateHref} /></div></li>)}</ol></>;
 }
 
-export function StructuredResultView({ result }: { result: ExecutionResult }) {
+export function StructuredResultView({ result, executionId }: { result: ExecutionResult; executionId?: string }) {
   switch (result.kind) {
     case "candidate_shortlist": return <Overview result={result} />;
     case "candidate_concerns": return <Concerns result={result} />;
     case "candidate_comparison": return <Comparison result={result} />;
     case "candidate_skill_focus": return <SkillFocus result={result} />;
     case "candidate_refocus": return <Refocus result={result} />;
+    case "candidate_status_proposal": return executionId ? <ReviewedStatusProposalView executionId={executionId} result={result} /> : null;
+    case "candidate_status_action_result": return <ReviewedStatusAppliedView result={result} />;
   }
 }
 
 export function resultCandidateCount(result: ExecutionResult) {
   if (result.kind === "candidate_shortlist") return result.candidates.length;
   if (result.kind === "candidate_comparison") return result.sourceCandidateCount;
+  if (result.kind === "candidate_status_proposal") return result.changeCount + result.skipped.length;
+  if (result.kind === "candidate_status_action_result") return result.appliedCount;
   return result.candidateSetCount;
 }
 
@@ -72,5 +77,7 @@ export function resultHeading(result: ExecutionResult) {
     case "candidate_comparison": return `${result.job.title} comparison`;
     case "candidate_skill_focus": return `${result.focus} evidence`;
     case "candidate_refocus": return `${result.job.title} · ${result.focus} focus`;
+    case "candidate_status_proposal": return `${result.job.title} proposed changes`;
+    case "candidate_status_action_result": return `${result.job.title} changes applied`;
   }
 }

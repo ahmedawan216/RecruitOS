@@ -5,8 +5,10 @@ export { executionResultSchema, rankedCandidateSchema } from "@/lib/recruitos/re
 export type { ExecutionResult } from "@/lib/recruitos/result";
 
 export const COMMAND_INTENT = "review_and_rank_candidates" as const;
+export const STATUS_ACTION_INTENT = "propose_candidate_status_change" as const;
 export const DEFAULT_RESULT_COUNT = 8;
 export const MAX_RESULT_COUNT = 25;
+export const MAX_STATUS_ACTION_COUNT = 8;
 
 export const commandSubmissionSchema = z.object({
   commandText: z.string().trim().min(1).max(4000),
@@ -23,6 +25,15 @@ export const reviewAndRankIntentSchema = z.object({
   intent: z.literal(COMMAND_INTENT),
   requestedCount: z.number().int().min(1).max(MAX_RESULT_COUNT),
   requestedJobText: z.string().trim().min(1).max(200).nullable(),
+});
+
+export const candidateStatusActionIntentSchema = z.object({
+  intent: z.literal(STATUS_ACTION_INTENT),
+  targetStatus: z.literal("interview"),
+  selector: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("strongest"), count: z.number().int().min(1).max(MAX_STATUS_ACTION_COUNT) }),
+    z.object({ kind: z.literal("candidate_name"), name: z.string().trim().min(2).max(160) }),
+  ]),
 });
 
 export const followUpIntentSchema = z.discriminatedUnion("intent", [
@@ -42,11 +53,16 @@ export const progressEventSchema = z.object({
 });
 
 export type ReviewAndRankIntent = z.infer<typeof reviewAndRankIntentSchema>;
+export type CandidateStatusActionIntent = z.infer<typeof candidateStatusActionIntentSchema>;
 export type FollowUpIntent = z.infer<typeof followUpIntentSchema>;
 
 export type CommandParseResult =
   | { ok: true; value: ReviewAndRankIntent }
   | { ok: false; code: "UNSUPPORTED_COMMAND" | "CONSEQUENTIAL_ACTION" | "INVALID_RESULT_COUNT"; message: string };
+
+export type CandidateStatusActionParseResult =
+  | { ok: true; value: CandidateStatusActionIntent }
+  | { ok: false; code: "NOT_STATUS_ACTION" | "UNSUPPORTED_ACTION" | "INVALID_ACTION_COUNT" | "AMBIGUOUS_ACTION"; message: string };
 
 export type FollowUpParseResult =
   | { ok: true; value: FollowUpIntent; requiresSemanticAnalysis: boolean }
@@ -91,13 +107,54 @@ function extractRequestedJobText(text: string): string | null {
 export function parseRecruitingCommand(text: string): CommandParseResult {
   const commandText = text.trim();
   if (!commandText) return { ok: false, code: "UNSUPPORTED_COMMAND", message: "Describe the recruiting review you want RecruitOS to prepare." };
-  if (consequentialPattern.test(commandText)) return { ok: false, code: "CONSEQUENTIAL_ACTION", message: "RecruitOS can analyze recruiting evidence, but it cannot change hiring status, contact candidates, or perform hiring actions in this workflow." };
+  if (consequentialPattern.test(commandText)) return { ok: false, code: "CONSEQUENTIAL_ACTION", message: "RecruitOS can analyze recruiting evidence here, but consequential candidate actions require an active reviewed recruiting task." };
   if (!workPattern.test(commandText) || !subjectPattern.test(commandText)) return { ok: false, code: "UNSUPPORTED_COMMAND", message: "This workspace currently supports reviewing and ranking applicants for a job." };
   const requestedCount = extractRequestedCount(commandText);
   if (requestedCount === "invalid") return { ok: false, code: "INVALID_RESULT_COUNT", message: `Choose between 1 and ${MAX_RESULT_COUNT} candidates for the shortlist.` };
   const value = { intent: COMMAND_INTENT, requestedCount: requestedCount ?? DEFAULT_RESULT_COUNT, requestedJobText: extractRequestedJobText(commandText) } as const;
   const validation = reviewAndRankIntentSchema.safeParse(value);
   return validation.success ? { ok: true, value: validation.data } : { ok: false, code: "UNSUPPORTED_COMMAND", message: "RecruitOS could not safely interpret that command." };
+}
+
+function cleanCandidateName(value: string) {
+  return value.replace(/[?.!]+$/g, "").replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+export function parseCandidateStatusActionCommand(text: string): CandidateStatusActionParseResult {
+  const commandText = text.trim();
+  if (!commandText) return { ok: false, code: "NOT_STATUS_ACTION", message: "" };
+
+  const looksConsequential = /\b(move|advance|reject|hire|offer|promote|change\s+(?:their\s+)?status)\b/i.test(commandText);
+  if (!looksConsequential) return { ok: false, code: "NOT_STATUS_ACTION", message: "" };
+
+  const explicitlyDifferentTarget = commandText.match(/\b(?:to|into)\s+(new|reviewing|shortlisted|offer|hired|rejected)\b/i);
+  if (explicitlyDifferentTarget || /\b(reject|hire|offer|promote)\b/i.test(commandText)) {
+    return { ok: false, code: "UNSUPPORTED_ACTION", message: "Phase 2E currently supports only human-reviewed moves to Interview. Other consequential recruiting actions remain unavailable." };
+  }
+
+  const interviewTarget = /\b(?:to|into)\s+interview\b/i.test(commandText);
+  const advanceVerb = /\badvance\b/i.test(commandText);
+  if (!interviewTarget && !advanceVerb) {
+    return { ok: false, code: "AMBIGUOUS_ACTION", message: "Specify the supported destination explicitly, for example: Move the strongest 3 candidates to interview." };
+  }
+
+  const strongestMatch = commandText.match(/\b(?:the\s+)?(?:strongest|top|best)(?:\s+(\d{1,2}))?(?:\s+(?:candidate|candidates|applicant|applicants))?\b/i);
+  if (strongestMatch) {
+    const count = strongestMatch[1] ? Number(strongestMatch[1]) : 1;
+    if (!Number.isInteger(count) || count < 1 || count > MAX_STATUS_ACTION_COUNT) {
+      return { ok: false, code: "INVALID_ACTION_COUNT", message: `Choose between 1 and ${MAX_STATUS_ACTION_COUNT} candidates for a reviewed status change.` };
+    }
+    return { ok: true, value: { intent: STATUS_ACTION_INTENT, targetStatus: "interview", selector: { kind: "strongest", count } } };
+  }
+
+  const explicitName = commandText.match(/\b(?:move|advance)\s+(.+?)\s+(?:to|into)\s+interview\b/i);
+  if (explicitName?.[1]) {
+    const name = cleanCandidateName(explicitName[1].replace(/^(?:candidate|applicant)\s+/i, ""));
+    const genericSelector = /^(?:the\s+)?(?:candidate|candidates|applicant|applicants|them|they)$/i.test(name);
+    if (!genericSelector && name.length >= 2) return { ok: true, value: { intent: STATUS_ACTION_INTENT, targetStatus: "interview", selector: { kind: "candidate_name", name } } };
+  }
+
+  return { ok: false, code: "AMBIGUOUS_ACTION", message: "RecruitOS could not identify the exact candidate scope. Use the strongest/top N candidates or an exact candidate name from the current task." };
 }
 
 function cleanFocus(value: string) {
@@ -107,7 +164,7 @@ function cleanFocus(value: string) {
 export function parseFollowUpCommand(text: string): FollowUpParseResult {
   const commandText = text.trim();
   if (!commandText) return { ok: false, code: "UNSUPPORTED_FOLLOW_UP", message: "Describe how you want to focus the current recruiting result." };
-  if (consequentialPattern.test(commandText)) return { ok: false, code: "CONSEQUENTIAL_ACTION", message: "This analytical workflow cannot reject, advance, contact, schedule, or otherwise change candidates." };
+  if (consequentialPattern.test(commandText)) return { ok: false, code: "CONSEQUENTIAL_ACTION", message: "Consequential recruiting requests must go through RecruitOS's reviewed proposal flow. Unsupported actions remain blocked." };
   if (/\b(back to overview|show (?:the )?full shortlist|show all candidate details|full overview|overview)\b/i.test(commandText)) return { ok: true, value: { intent: "show_overview" }, requiresSemanticAnalysis: false };
   if (/\b(concerns?|gaps?)\b/i.test(commandText) && /\b(show|only|biggest|what|list|focus)\b/i.test(commandText)) return { ok: true, value: { intent: "show_concerns" }, requiresSemanticAnalysis: false };
   if (/\bcompare\b/i.test(commandText)) {
@@ -128,7 +185,7 @@ export function parseFollowUpCommand(text: string): FollowUpParseResult {
     const focus = cleanFocus(skill[1]);
     if (focus) return { ok: true, value: { intent: "skill_focus", focus }, requiresSemanticAnalysis: true };
   }
-  return { ok: false, code: "UNSUPPORTED_FOLLOW_UP", message: "Supported follow-ups can show concerns, compare 2–8 current candidates, focus on evidence for a skill, analytically refocus the current ranking, or return to the overview." };
+  return { ok: false, code: "UNSUPPORTED_FOLLOW_UP", message: "Supported follow-ups can show concerns, compare 2–8 current candidates, focus on evidence for a skill, analytically refocus the current ranking, return to the overview, or prepare a human-reviewed move to Interview." };
 }
 
 export function resolveJobReference(jobs: JobReference[], requestedJobText: string | null, scopeJobId?: string | null): JobResolution {

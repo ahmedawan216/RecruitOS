@@ -6,6 +6,7 @@ import { ArrowDownLeft, ArrowUpRight, ChevronDown, Download, FileSearch, Loader2
 import {
   canCancelExecution,
   isTerminalExecutionStatus,
+  parseCandidateStatusActionCommand,
   parseFollowUpCommand,
   parseRecruitingCommand,
 } from "@/lib/recruitos/command";
@@ -42,8 +43,11 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
   const suggestions = getWorkspaceSuggestions(selectedJob ?? contextJob);
   const parsedDraft = useMemo(() => parseRecruitingCommand(draft.text), [draft.text]);
   const parsedFollowUp = useMemo(() => parseFollowUpCommand(followUpDraft), [followUpDraft]);
+  const parsedAction = useMemo(() => parseCandidateStatusActionCommand(followUpDraft), [followUpDraft]);
+  const actionRequest = parsedAction.ok || parsedAction.code !== "NOT_STATUS_ACTION";
+  const resultBlocksFollowUp = execution?.result?.kind === "candidate_status_proposal" || execution?.result?.kind === "candidate_status_action_result";
   const canSubmit = parsedDraft.ok && !isSubmitting && !execution;
-  const canSubmitFollowUp = Boolean(execution?.result) && execution?.status === "completed" && parsedFollowUp.ok && !isFollowingUp;
+  const canSubmitFollowUp = Boolean(execution?.result) && execution?.status === "completed" && !resultBlocksFollowUp && (parsedFollowUp.ok || actionRequest) && !isFollowingUp;
 
   useEffect(() => {
     const textarea = execution ? followUpRef.current : textareaRef.current;
@@ -163,12 +167,12 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
         body: JSON.stringify({ commandText: followUpDraft, idempotencyKey: crypto.randomUUID() }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "RecruitOS could not apply that follow-up.");
+      if (!response.ok) throw new Error(payload.error || "RecruitOS could not prepare that follow-up.");
       setExecution(payload.execution);
       setFollowUpDraft("");
       await refreshExecution(execution.id);
     } catch (error) {
-      setSubmissionError(error instanceof Error ? error.message : "RecruitOS could not apply that follow-up.");
+      setSubmissionError(error instanceof Error ? error.message : "RecruitOS could not prepare that follow-up.");
     } finally {
       setIsFollowingUp(false);
     }
@@ -217,32 +221,35 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
     const terminal = isTerminalExecutionStatus(execution.status);
     const result = execution.result;
     const followUpWorking = execution.status === "running" && execution.stage === "followup_semantic_analysis";
+    const pendingProposal = result?.kind === "candidate_status_proposal";
+    const appliedAction = result?.kind === "candidate_status_action_result";
     const latestProgress = [...events].reverse().find((event) => event.kind === "progress" || event.kind === "status");
-    const followUpSuggestions = result ? [
+    const followUpSuggestions = result && !pendingProposal && !appliedAction ? [
       ...(result.kind !== "candidate_concerns" ? ["Show me only the concerns."] : []),
       ...(resultCandidateCount(result) >= 2 && result.kind !== "candidate_comparison" ? ["Compare the strongest candidates."] : []),
       ...(result.kind === "candidate_shortlist" && result.candidates[0]?.strengths[0] ? [`Which candidates have the strongest ${result.candidates[0].strengths[0]} experience?`] : []),
+      ...(resultCandidateCount(result) >= 1 ? [`Move the strongest ${Math.min(3, resultCandidateCount(result))} candidate${Math.min(3, resultCandidateCount(result)) === 1 ? "" : "s"} to interview.`] : []),
       ...(result.kind !== "candidate_shortlist" ? ["Show the full shortlist."] : []),
     ].slice(0, 4) : [];
 
     return (
-      <section aria-labelledby="command-task-label" className="ph-no-capture" data-workspace-state={followUpWorking ? "live-work" : result ? "result" : terminal ? execution.status : "live-work"}>
+      <section aria-labelledby="command-task-label" className="ph-no-capture" data-workspace-state={followUpWorking ? "live-work" : pendingProposal ? "review-required" : result ? "result" : terminal ? execution.status : "live-work"}>
         <div className="command-surface overflow-hidden">
           <div className="flex flex-col gap-4 px-5 pb-5 pt-6 sm:flex-row sm:items-start sm:justify-between sm:px-7 sm:pt-7">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 id="command-task-label" className="font-display text-xl font-semibold leading-7 text-ink">{result ? resultHeading(result) : "RecruitOS task"}</h2>
-                <span className={`rounded-md px-2.5 py-1 text-[12px] font-medium ${execution.status === "completed" ? "bg-success-soft text-success" : execution.status === "failed" || execution.status === "cancelled" || execution.status === "clarification_required" ? "bg-surface-2 text-ink-dim" : "bg-accent-soft text-accent"}`}>
-                  {followUpWorking ? "Refocusing" : execution.status === "clarification_required" ? "Needs scope" : execution.status.replaceAll("_", " ")}
+                <span className={`rounded-md px-2.5 py-1 text-[12px] font-medium ${pendingProposal ? "bg-warning-soft text-warning" : appliedAction || execution.status === "completed" ? "bg-success-soft text-success" : execution.status === "failed" || execution.status === "cancelled" || execution.status === "clarification_required" ? "bg-surface-2 text-ink-dim" : "bg-accent-soft text-accent"}`}>
+                  {pendingProposal ? (result.proposalStatus === "stale" ? "Review again" : "Review required") : appliedAction ? "Applied" : followUpWorking ? "Refocusing" : execution.status === "clarification_required" ? "Needs scope" : execution.status.replaceAll("_", " ")}
                 </span>
               </div>
-              <p className="mt-3 max-w-3xl break-words text-[15px] leading-6 text-ink-dim">{execution.commandText}</p>
+              <p className="mt-3 max-w-3xl break-words text-[15px] leading-6 text-ink-dim">{pendingProposal ? result.requestedCommand : execution.commandText}</p>
               {result ? <p className="mt-2 text-[13px] leading-5 text-ink-dim">Current scope · {result.job.title} · {resultCandidateCount(result)} candidate{resultCandidateCount(result) === 1 ? "" : "s"}</p> : null}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {result && execution.status === "completed" ? <a href={`/api/recruitos/executions/${execution.id}/export`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink"><Download className="size-4" aria-hidden="true" />Download analysis</a> : null}
+              {result && execution.status === "completed" && !pendingProposal && !appliedAction ? <a href={`/api/recruitos/executions/${execution.id}/export`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink"><Download className="size-4" aria-hidden="true" />Download analysis</a> : null}
               {canCancelExecution(execution.status) ? <button type="button" onClick={cancelExecution} disabled={isCancelling} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink disabled:opacity-60"><X className="size-4" aria-hidden="true" />{isCancelling ? "Cancelling…" : "Cancel"}</button> : null}
-              {terminal ? <button type="button" onClick={() => void resetWorkspace()} disabled={isResetting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink disabled:opacity-60"><RotateCcw className="size-4" aria-hidden="true" />{isResetting ? "Starting…" : "New task"}</button> : null}
+              {terminal && !pendingProposal ? <button type="button" onClick={() => void resetWorkspace()} disabled={isResetting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 text-sm font-medium text-ink-dim hover:text-ink disabled:opacity-60"><RotateCcw className="size-4" aria-hidden="true" />{isResetting ? "Starting…" : "New task"}</button> : null}
             </div>
           </div>
 
@@ -253,16 +260,16 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
             {submissionError ? <div role="alert" className="mt-4 text-sm leading-6 text-danger">{submissionError}</div> : null}
           </div> : <div className="border-t border-border">
             {followUpWorking ? <div className="border-b border-border bg-accent-soft px-5 py-4 sm:px-7" aria-live="polite"><div className="flex items-center gap-3 text-sm font-medium text-accent"><Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /><span>{latestProgress?.message ?? "Reviewing current shortlist evidence"}</span></div><p className="mt-1 pl-7 text-[12px] leading-5 text-ink-dim">The current result remains visible while RecruitOS performs this bounded analytical pass.</p></div> : null}
-            {execution.errorMessage ? <div role="status" className="border-b border-border bg-warning-soft px-5 py-4 text-sm leading-6 text-ink-dim sm:px-7">{execution.errorMessage}</div> : null}
-            <StructuredResultView result={result} />
-            <div className="border-t border-border bg-bg px-5 py-4 text-[12px] leading-5 text-ink-dim sm:px-7">Decision support only. RecruitOS has not rejected, advanced, contacted, scheduled, or otherwise changed any candidate.</div>
+            {execution.errorMessage && !pendingProposal ? <div role="status" className="border-b border-border bg-warning-soft px-5 py-4 text-sm leading-6 text-ink-dim sm:px-7">{execution.errorMessage}</div> : null}
+            <StructuredResultView result={result} executionId={execution.id} />
+            {!pendingProposal && !appliedAction ? <div className="border-t border-border bg-bg px-5 py-4 text-[12px] leading-5 text-ink-dim sm:px-7">Decision support only. RecruitOS has not rejected, advanced, contacted, scheduled, or otherwise changed any candidate.</div> : null}
 
-            {execution.status === "completed" ? <div className="border-t border-border px-5 py-5 sm:px-7 sm:py-6">
+            {execution.status === "completed" && !pendingProposal && !appliedAction ? <div className="border-t border-border px-5 py-5 sm:px-7 sm:py-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="font-display text-base font-semibold text-ink">Continue this recruiting task</h3><p className="mt-1 text-[13px] leading-5 text-ink-dim">Your next command stays within the current {result.job.title} task and its {resultCandidateCount(result)} candidates.</p></div><span className="inline-flex items-center gap-2 self-start rounded-md bg-accent-soft px-2.5 py-1 text-[12px] font-medium text-accent"><Sparkles className="size-3.5" aria-hidden="true" />Current result context</span></div>
               <div className="mt-4 rounded-lg border border-border bg-surface px-4 py-3">
                 <textarea ref={followUpRef} value={followUpDraft} rows={2} maxLength={1000} autoComplete="off" spellCheck aria-label="Contextual follow-up command" aria-describedby="followup-help followup-keyboard" placeholder="Show me only the concerns…" onChange={(event) => { setFollowUpDraft(event.target.value); setSubmissionError(null); }} onKeyDown={(event) => { if (!event.nativeEvent.isComposing && event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (canSubmitFollowUp) void submitFollowUp(); } }} className="ph-mask ph-no-capture ph-no-capture-input block min-h-[64px] max-h-[168px] w-full resize-none overflow-y-auto bg-transparent text-[15px] leading-6 text-ink outline-none placeholder:text-ink-dim focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent" />
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p id="followup-help" className={`text-[12px] leading-5 ${followUpDraft && !parsedFollowUp.ok ? "text-warning" : "text-ink-dim"}`}>{submissionError ?? (!followUpDraft ? "Focus, compare, inspect evidence, or restore the overview. Hiring actions remain unavailable." : parsedFollowUp.ok ? (parsedFollowUp.requiresSemanticAnalysis ? "This follow-up will run a bounded semantic evidence pass on the current candidate set." : "This follow-up uses the current stored result and does not re-analyze resumes.") : parsedFollowUp.message)}</p><button type="button" onClick={() => void submitFollowUp()} disabled={!canSubmitFollowUp} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-accent px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">{isFollowingUp ? "Applying…" : "Apply follow-up"}{isFollowingUp ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowUpRight className="size-4" aria-hidden="true" />}</button></div>
-                <p id="followup-keyboard" className="sr-only">Enter inserts a new line. Control or Command plus Enter applies a supported follow-up to the current recruiting task.</p>
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p id="followup-help" className={`text-[12px] leading-5 ${followUpDraft && !parsedFollowUp.ok && !parsedAction.ok ? "text-warning" : "text-ink-dim"}`}>{submissionError ?? (!followUpDraft ? "Focus, compare, inspect evidence, or prepare a human-reviewed move to Interview." : parsedAction.ok ? "This will prepare exact candidate changes for human review. No status changes occur until you separately approve the proposal." : actionRequest ? parsedAction.message : parsedFollowUp.ok ? (parsedFollowUp.requiresSemanticAnalysis ? "This follow-up will run a bounded semantic evidence pass on the current candidate set." : "This follow-up uses the current stored result and does not re-analyze resumes.") : parsedFollowUp.message)}</p><button type="button" onClick={() => void submitFollowUp()} disabled={!canSubmitFollowUp} className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40 ${parsedAction.ok ? "bg-warning" : "bg-accent"}`}>{isFollowingUp ? "Preparing…" : parsedAction.ok ? "Prepare proposal" : "Apply follow-up"}{isFollowingUp ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowUpRight className="size-4" aria-hidden="true" />}</button></div>
+                <p id="followup-keyboard" className="sr-only">Enter inserts a new line. Control or Command plus Enter applies a supported analytical follow-up or prepares a reviewed candidate status proposal.</p>
               </div>
               {followUpSuggestions.length ? <div className="mt-3 flex flex-wrap gap-2" aria-label="Suggested follow-ups">{followUpSuggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setFollowUpDraft(suggestion); setSubmissionError(null); queueMicrotask(() => followUpRef.current?.focus()); }} className="min-h-10 rounded-lg border border-border px-3 text-[13px] font-medium text-ink-dim hover:border-accent hover:text-accent">{suggestion}</button>)}</div> : null}
             </div> : null}
@@ -272,7 +279,7 @@ export function CommandComposer({ jobs, contextJob, initialExecution }: { jobs: 
     );
   }
 
-  const helpCopy = !draft.text ? "Phase 2C can review and rank applicants for a job. No hiring status changes are performed." : parsedDraft.ok ? `Ready to prepare up to ${parsedDraft.value.requestedCount} candidates using authorized workspace evidence.` : parsedDraft.message;
+  const helpCopy = !draft.text ? "Review and rank applicants for a job. Consequential candidate changes require an active task and a separate human-reviewed proposal." : parsedDraft.ok ? `Ready to prepare up to ${parsedDraft.value.requestedCount} candidates using authorized workspace evidence.` : parsedDraft.message;
 
   return (
     <section aria-labelledby="command-label" className="ph-no-capture ph-no-capture-input" data-workspace-state={draft.text ? "command-draft" : "idle"}>
