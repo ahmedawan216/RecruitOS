@@ -150,7 +150,8 @@ export function parseCandidateStatusActionCommand(text: string): CandidateStatus
   const explicitName = commandText.match(/\b(?:move|advance)\s+(.+?)\s+(?:to|into)\s+interview\b/i);
   if (explicitName?.[1]) {
     const name = cleanCandidateName(explicitName[1].replace(/^(?:candidate|applicant)\s+/i, ""));
-    if (name.length >= 2) return { ok: true, value: { intent: STATUS_ACTION_INTENT, targetStatus: "interview", selector: { kind: "candidate_name", name } } };
+    const genericSelector = /^(?:the\s+)?(?:candidate|candidates|applicant|applicants|them|they)$/i.test(name);
+    if (!genericSelector && name.length >= 2) return { ok: true, value: { intent: STATUS_ACTION_INTENT, targetStatus: "interview", selector: { kind: "candidate_name", name } } };
   }
 
   return { ok: false, code: "AMBIGUOUS_ACTION", message: "RecruitOS could not identify the exact candidate scope. Use the strongest/top N candidates or an exact candidate name from the current task." };
