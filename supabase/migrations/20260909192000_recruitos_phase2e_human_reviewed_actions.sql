@@ -43,13 +43,15 @@ begin
 
   if v_result->>'kind' <> 'candidate_status_proposal'
      or v_result->>'proposalId' <> p_proposal_id::text
-     or v_result->>'proposalStatus' not in ('pending', 'stale') then
+     or v_result->>'proposalStatus' <> 'pending' then
     return jsonb_build_object('ok', false, 'code', 'PROPOSAL_NOT_PENDING');
   end if;
 
-  if v_job_id is null or not exists (
-    select 1 from public.jobs where id = v_job_id and user_id = p_user_id
-  ) then
+  if v_job_id is null
+     or v_result->'job'->>'id' <> v_job_id::text
+     or not exists (
+       select 1 from public.jobs where id = v_job_id and user_id = p_user_id
+     ) then
     return jsonb_build_object('ok', false, 'code', 'STALE_JOB');
   end if;
 
