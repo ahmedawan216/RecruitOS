@@ -59,7 +59,7 @@ export type JobResolution =
   | { status: "ambiguous"; jobs: JobReference[] }
   | { status: "scope_conflict"; job: JobReference };
 
-export const consequentialPattern = /\b(reject|hire|advance|move\s+(?:them|candidates|applicants)|send\s+(?:an\s+|the\s+)?email|email\s+(?:them|candidates|applicants)|contact\s+(?:them|candidates|applicants)|delete|publish|change\s+(?:their\s+)?status|make\s+(?:an\s+)?offer|schedule\s+(?:an\s+)?interview)\b/i;
+export const consequentialPattern = /\b(reject|hire|advance|promote|email|contact|message|call|schedule|delete|publish|offer|move\s+(?:them|candidates|applicants)|send\s+(?:an\s+|the\s+)?email|change\s+(?:their\s+)?status|make\s+(?:an\s+)?offer)\b/i;
 const workPattern = /\b(review|find|prepare|rank|compare|shortlist)\b/i;
 const subjectPattern = /\b(candidate|candidates|applicant|applicants|shortlist)\b/i;
 
