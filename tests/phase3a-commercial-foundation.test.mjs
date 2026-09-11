@@ -86,11 +86,13 @@ test("plan catalog and nested commercial metadata are frozen against runtime mut
   }
 });
 
-test("server plan resolver has no client-controlled plan parameter", () => {
+test("server plan resolver remains authenticated and server-authoritative", () => {
   const resolverSource = readFileSync(new URL("../lib/recruitos/effective-plan-server.ts", import.meta.url), "utf8");
   assert.match(resolverSource, /import "server-only"/);
   assert.match(resolverSource, /requireAuthenticatedUser\(\)/);
-  assert.match(resolverSource, /return DEFAULT_EFFECTIVE_PLAN/);
+  assert.match(resolverSource, /supabaseAdmin/);
+  assert.match(resolverSource, /resolvePlanFromBillingRecords/);
+  assert.match(resolverSource, /return "free"/);
   assert.doesNotMatch(resolverSource, /localStorage|searchParams|query|cookie.*plan|planKey\s*[:=]/i);
   assert.match(resolverSource, /getEffectiveUserPlan\(\)/);
 });

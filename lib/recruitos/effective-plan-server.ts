@@ -1,16 +1,21 @@
 import "server-only";
 
-import { DEFAULT_EFFECTIVE_PLAN, type PlanKey } from "@/lib/recruitos/commercial";
+import type { PlanKey } from "@/lib/recruitos/commercial";
+import { resolvePlanFromBillingRecords } from "@/lib/recruitos/paddle-billing";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
-/**
- * Resolves the authoritative effective plan for the current authenticated user.
- *
- * Phase 3A has no paid-plan persistence. Authenticated users therefore resolve
- * to Free. A future billing integration must replace this with a server-side
- * paid-plan source rather than accepting a plan value from the browser.
- */
 export async function getEffectiveUserPlan(): Promise<PlanKey> {
-  await requireAuthenticatedUser();
-  return DEFAULT_EFFECTIVE_PLAN;
+  const user = await requireAuthenticatedUser();
+  const { data, error } = await supabaseAdmin
+    .from("recruitos_paddle_subscriptions")
+    .select("plan,status,paddle_price_id")
+    .eq("user_id", user.id);
+
+  if (error) {
+    console.error("RecruitOS billing plan lookup failed:", error.message);
+    return "free";
+  }
+
+  return resolvePlanFromBillingRecords(data ?? []);
 }

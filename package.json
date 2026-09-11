@@ -12,6 +12,8 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@paddle/paddle-js": "1.6.5",
+    "@paddle/paddle-node-sdk": "3.10.0",
     "@radix-ui/react-slot": "1.1.1",
     "@supabase/supabase-js": "^2.110.2",
     "@vercel/analytics": "^2.0.1",

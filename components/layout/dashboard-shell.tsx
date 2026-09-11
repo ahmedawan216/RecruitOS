@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BriefcaseBusiness,
   ChevronDown,
+  CreditCard,
   FileSearch,
   Home,
   LogOut,
@@ -77,6 +78,9 @@ function AccountMenu({ email }: { email: string }) {
         <ChevronDown className="size-4 text-ink-faint transition-transform group-open:rotate-180" aria-hidden="true" />
       </summary>
       <div className="absolute bottom-[calc(100%+8px)] left-0 right-0 rounded-lg border border-border bg-surface p-1.5 shadow-workspace">
+        <Link href="/dashboard/agents/recruitos/billing" className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <CreditCard className="size-4" aria-hidden="true" />Billing
+        </Link>
         <form action={signOut}><button type="submit" className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><LogOut className="size-4" aria-hidden="true" />Sign out</button></form>
       </div>
     </details>
