@@ -93,7 +93,7 @@ test("active-job counting is owner-scoped and ignores closed archived and draft 
 test("resume analysis reserves usage after request ownership and input validation but before AI work", () => {
   const resumeValidation = analyzeResume.indexOf('resume.status !== "success"');
   const jobValidation = analyzeResume.indexOf('if (jobError || !job)');
-  const reservation = analyzeResume.indexOf("reserveResumeAnalysisWithinPlanLimit");
+  const reservation = analyzeResume.indexOf("const usageReservation = await reserveResumeAnalysisWithinPlanLimit");
   const aiWork = analyzeResume.indexOf("groq.chat.completions.create");
   assert.ok(resumeValidation >= 0 && jobValidation > resumeValidation);
   assert.ok(reservation > jobValidation && aiWork > reservation);
@@ -110,7 +110,7 @@ test("resume analysis windows and limits are concurrency-safe and old-window usa
 });
 
 test("rejected or unauthorized resume-analysis requests do not consume usage", () => {
-  const reservation = analyzeResume.indexOf("reserveResumeAnalysisWithinPlanLimit");
+  const reservation = analyzeResume.indexOf("const usageReservation = await reserveResumeAnalysisWithinPlanLimit");
   assert.ok(analyzeResume.indexOf("requireAuthenticatedUser()") < reservation);
   assert.ok(analyzeResume.indexOf("Resume not found.") < reservation);
   assert.ok(analyzeResume.indexOf("This resume has no extracted text to analyze.") < reservation);
