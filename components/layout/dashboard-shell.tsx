@@ -6,21 +6,30 @@ import { usePathname } from "next/navigation";
 import {
   BriefcaseBusiness,
   ChevronDown,
-  CreditCard,
+  CircleHelp,
+  ExternalLink,
   FileSearch,
   Home,
+  Palette,
   LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings2,
+  Sparkles,
+  UserRound,
   Users,
   X,
 } from "lucide-react";
 
 import { signOut } from "@/app/auth/actions";
+import type { BillingPanelData } from "@/components/recruitos/billing/billing-panel";
+import { SettingsModal, type RecruitOSAccountSettings, type SettingsSection } from "@/components/recruitos/settings/settings-modal";
+import { getPlanDefinition } from "@/lib/recruitos/commercial";
 import { cn } from "@/lib/utils";
 
 const workspaceHref = "/dashboard/agents/recruitos";
+const pricingHref = "https://operationos.org/pricing";
 const navigation = [
   { label: "Workspace", href: workspaceHref, icon: Home, exact: true },
   { label: "Jobs", href: `${workspaceHref}/jobs`, icon: BriefcaseBusiness },
@@ -69,44 +78,146 @@ function WorkspaceNavigation({ pathname, onNavigate, compact = false }: { pathna
   );
 }
 
-function AccountMenu({ email }: { email: string }) {
-  return (
-    <details className="group relative">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-lg px-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface text-xs font-semibold uppercase text-ink" aria-hidden="true">{email.charAt(0)}</span>
-        <span className="min-w-0 flex-1"><span className="block text-xs font-medium text-ink">Your account</span><span className="block truncate text-[13px] text-ink-dim">{email}</span></span>
-        <ChevronDown className="size-4 text-ink-faint transition-transform group-open:rotate-180" aria-hidden="true" />
-      </summary>
-      <div className="absolute bottom-[calc(100%+8px)] left-0 right-0 rounded-lg border border-border bg-surface p-1.5 shadow-workspace">
-        <Link href="/dashboard/agents/recruitos/billing" className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-          <CreditCard className="size-4" aria-hidden="true" />Billing
-        </Link>
-        <form action={signOut}><button type="submit" className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><LogOut className="size-4" aria-hidden="true" />Sign out</button></form>
-      </div>
-    </details>
-  );
-}
+const accountItemClass = "flex min-h-10 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] font-medium text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
-function CompactAccountAction() {
+function AccountMenu({
+  displayName,
+  email,
+  billing,
+  compact = false,
+  restoreFocus,
+  onOpenSettings,
+}: {
+  displayName: string;
+  email: string;
+  billing: BillingPanelData;
+  compact?: boolean;
+  restoreFocus?: () => void;
+  onOpenSettings: (section: SettingsSection, restoreFocus: () => void) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const plan = getPlanDefinition(billing.effectivePlan);
+  const planLabel = plan?.displayName ?? "Free";
+  const planAction = billing.effectivePlan === "free" ? "Upgrade plan" : "View plans";
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  function openSettings(section: SettingsSection) {
+    setOpen(false);
+    onOpenSettings(section, restoreFocus ?? (() => triggerRef.current?.focus()));
+  }
+
   return (
-    <form action={signOut} className="flex justify-center">
-      <button type="submit" className="flex size-11 items-center justify-center rounded-lg text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" aria-label="Sign out" title="Sign out">
-        <LogOut className="size-[18px]" aria-hidden="true" />
+    <div ref={rootRef} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        data-recruitos-account-trigger
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          "flex min-h-11 w-full items-center rounded-lg text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          compact ? "justify-center px-2" : "gap-3 px-2.5",
+        )}
+        aria-label={compact ? `Open account menu for ${displayName}` : undefined}
+        title={compact ? "Account" : undefined}
+      >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface text-xs font-semibold uppercase text-ink" aria-hidden="true">
+          {(displayName || email).charAt(0)}
+        </span>
+        {compact ? null : (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-medium text-ink">{displayName}</span>
+              <span className="block truncate text-[12px] text-ink-dim">{planLabel}</span>
+            </span>
+            <ChevronDown className={cn("size-4 text-ink-faint transition-transform", open && "rotate-180")} aria-hidden="true" />
+          </>
+        )}
       </button>
-    </form>
+
+      {open ? (
+        <div
+          role="menu"
+          data-recruitos-account-popover
+          className={cn(
+            "absolute z-[70] w-64 rounded-xl border border-border bg-surface p-1.5 shadow-2xl",
+            compact ? "bottom-0 left-[calc(100%+10px)]" : "bottom-[calc(100%+8px)] left-0",
+          )}
+        >
+          <div className="px-2.5 pb-2.5 pt-2">
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface-2 text-xs font-semibold uppercase text-ink" aria-hidden="true">
+                {(displayName || email).charAt(0)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ink">{displayName}</p>
+                <p className="truncate text-xs text-ink-dim">{email}</p>
+                <p className="mt-1 text-xs font-medium text-accent">{planLabel}</p>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-border pt-1.5">
+            <Link href={pricingHref} target="_blank" rel="noreferrer" role="menuitem" className={accountItemClass} onClick={() => setOpen(false)}>
+              <Sparkles className="size-4" aria-hidden="true" />{planAction}<ExternalLink className="ml-auto size-3.5 text-ink-faint" aria-hidden="true" />
+            </Link>
+            <button type="button" role="menuitem" className={accountItemClass} data-settings-target="personalization" onClick={() => openSettings("personalization")}><Palette className="size-4" aria-hidden="true" />Personalization</button>
+            <button type="button" role="menuitem" className={accountItemClass} data-settings-target="profile" onClick={() => openSettings("profile")}><UserRound className="size-4" aria-hidden="true" />Profile</button>
+            <button type="button" role="menuitem" className={accountItemClass} data-settings-target="general" onClick={() => openSettings("general")}><Settings2 className="size-4" aria-hidden="true" />Settings</button>
+          </div>
+          <div className="mt-1 border-t border-border pt-1.5">
+            <button type="button" role="menuitem" className={accountItemClass} data-settings-target="help" onClick={() => openSettings("help")}><CircleHelp className="size-4" aria-hidden="true" />Help</button>
+            <form action={signOut}><button type="submit" role="menuitem" className={accountItemClass}><LogOut className="size-4" aria-hidden="true" />Log out</button></form>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-export function DashboardShell({ children, email }: { children: ReactNode; email: string }) {
+export function DashboardShell({
+  children,
+  displayName,
+  email,
+  billing,
+}: {
+  children: ReactNode;
+  displayName: string;
+  email: string;
+  billing: BillingPanelData;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopPinnedOpen, setDesktopPinnedOpen] = useState(true);
   const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
   const desktopToggleRef = useRef<HTMLButtonElement>(null);
+  const settingsRestoreFocusRef = useRef<(() => void) | null>(null);
   const desktopExpanded = desktopPinnedOpen || desktopPreviewOpen;
+  const account: RecruitOSAccountSettings = { displayName, email, billing };
 
   useEffect(() => {
     setMobileOpen(false);
@@ -200,6 +311,18 @@ export function DashboardShell({ children, email }: { children: ReactNode; email
     setDesktopPreviewOpen(false);
   }
 
+  function openSettings(section: SettingsSection, restoreFocus: () => void) {
+    settingsRestoreFocusRef.current = restoreFocus;
+    setSettingsSection(section);
+    setSettingsOpen(true);
+    setMobileOpen(false);
+  }
+
+  function closeSettings() {
+    setSettingsOpen(false);
+    window.setTimeout(() => settingsRestoreFocusRef.current?.(), 0);
+  }
+
   return (
     <div
       className={cn(
@@ -234,7 +357,13 @@ export function DashboardShell({ children, email }: { children: ReactNode; email
             <WorkspaceNavigation pathname={pathname} compact={!desktopExpanded} />
           </div>
           <div className={cn("border-t border-border", desktopExpanded ? "p-3" : "p-2")}>
-            {desktopExpanded ? <AccountMenu email={email} /> : <CompactAccountAction />}
+            <AccountMenu
+              displayName={displayName}
+              email={email}
+              billing={billing}
+              compact={!desktopExpanded}
+              onOpenSettings={openSettings}
+            />
           </div>
         </div>
       </aside>
@@ -250,7 +379,15 @@ export function DashboardShell({ children, email }: { children: ReactNode; email
           <div ref={mobilePanelRef} id="mobile-workspace-navigation" className="workspace-sidebar absolute inset-y-0 right-0 flex w-[min(88vw,340px)] flex-col border-l border-border shadow-2xl">
             <div className="flex h-16 items-center justify-between border-b border-border px-4"><span className="text-sm font-semibold text-ink">Navigation</span><button ref={closeButtonRef} type="button" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }} className="flex size-11 items-center justify-center rounded-lg text-ink-dim hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" aria-label="Close workspace navigation"><X className="size-5" aria-hidden="true" /></button></div>
             <div className="flex-1 overflow-y-auto px-3 py-5"><WorkspaceNavigation pathname={pathname} onNavigate={() => setMobileOpen(false)} /></div>
-            <div className="border-t border-border p-3"><AccountMenu email={email} /></div>
+            <div className="border-t border-border p-3">
+              <AccountMenu
+                displayName={displayName}
+                email={email}
+                billing={billing}
+                restoreFocus={() => menuButtonRef.current?.focus()}
+                onOpenSettings={openSettings}
+              />
+            </div>
           </div>
         </div>
       ) : null}
@@ -263,6 +400,13 @@ export function DashboardShell({ children, email }: { children: ReactNode; email
       >
         {children}
       </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        initialSection={settingsSection}
+        account={account}
+        onClose={closeSettings}
+      />
     </div>
   );
 }
