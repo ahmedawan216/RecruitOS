@@ -135,7 +135,7 @@ test("structured plan-limit response contains only RecruitOS capacity context", 
 test("upgrade UX is contextual and never invents Enterprise", () => {
   assert.match(notice, /Upgrade plan/);
   assert.match(notice, /View Pro/);
-  assert.match(notice, /https:\/\/operationos\.org\/pricing/);
+  assert.match(planLimits, /https:\/\/operationos\.org\/pricing/);
   assert.match(notice, /Limit reached for this billing period\./);
   assert.doesNotMatch(notice, /Enterprise/i);
   assert.match(newJobPage, /PlanLimitNotice/);
