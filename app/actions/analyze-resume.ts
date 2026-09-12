@@ -4,6 +4,8 @@ import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractCandidateProfile } from "@/lib/recruitos/candidate-extraction";
 import { upsertCandidateFromProfile } from "@/lib/recruitos/candidates";
+import type { PlanLimitReached } from "@/lib/recruitos/plan-limits";
+import { reserveResumeAnalysisWithinPlanLimit } from "@/lib/recruitos/usage-server";
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -41,7 +43,17 @@ const analysisSchema = z.object({
   reasoning: z.string(),
 });
 
-export async function analyzeResume(resumeId: string, jobId: string) {
+export type AnalyzeResumeResult = {
+  success: boolean;
+  error?: string;
+  resumeId?: string;
+  jobId?: string;
+  analysisId?: string;
+  candidateId?: string;
+  limit?: PlanLimitReached;
+};
+
+export async function analyzeResume(resumeId: string, jobId: string): Promise<AnalyzeResumeResult> {
   try {
     const user = await requireAuthenticatedUser();
     if (!resumeId) return { success: false, error: "No resume ID was provided." };
@@ -70,6 +82,15 @@ export async function analyzeResume(resumeId: string, jobId: string) {
     if (jobError || !job) {
       console.error("Job fetch error:", jobError);
       return { success: false, error: "Job not found." };
+    }
+
+    const usageReservation = await reserveResumeAnalysisWithinPlanLimit(user.id, resumeId, jobId);
+    if (!usageReservation.allowed) {
+      return {
+        success: false,
+        error: usageReservation.limit.message,
+        limit: usageReservation.limit,
+      };
     }
 
     let candidateId = resume.candidate_id;

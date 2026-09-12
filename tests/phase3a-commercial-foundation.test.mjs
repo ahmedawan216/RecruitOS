@@ -16,6 +16,7 @@ const {
   RECOMMENDED_COMMERCIAL_PLAN,
   getPlanDefinition,
   getPlanLimits,
+  getPlanCapacity,
   canUseFeature,
   hasReachedLimit,
   isUsageAtOrAboveLimit,
@@ -49,12 +50,26 @@ test("all current core RecruitOS capabilities remain available on every plan", (
   }
 });
 
-test("undefined numeric limits do not block current usage", () => {
+test("Phase 3D capacity limits are centralized while future limit categories remain unconfigured", () => {
+  assert.deepEqual(getPlanCapacity("free"), {
+    activeJobs: { amount: 1, period: null },
+    resumeAnalyses: { amount: 2, period: "day" },
+  });
+  assert.deepEqual(getPlanCapacity("standard"), {
+    activeJobs: { amount: 25, period: null },
+    resumeAnalyses: { amount: 300, period: "month" },
+  });
+  assert.deepEqual(getPlanCapacity("pro"), {
+    activeJobs: { amount: 100, period: null },
+    resumeAnalyses: { amount: 1000, period: "month" },
+  });
+
   for (const plan of PLAN_KEYS) {
     const limits = getPlanLimits(plan);
     assert.ok(limits);
-    for (const value of Object.values(limits)) assert.equal(value, null);
-    assert.equal(hasReachedLimit(plan, "activeJobs", 1_000_000), false);
+    assert.equal(limits.candidateVolume, null);
+    assert.equal(limits.commandExecutions, null);
+    assert.equal(limits.batchSize, null);
   }
 });
 
@@ -83,6 +98,9 @@ test("plan catalog and nested commercial metadata are frozen against runtime mut
     assert.equal(Object.isFrozen(definition.price), true);
     assert.equal(Object.isFrozen(definition.features), true);
     assert.equal(Object.isFrozen(definition.limits), true);
+    assert.equal(Object.isFrozen(definition.capacity), true);
+    assert.equal(Object.isFrozen(definition.capacity.activeJobs), true);
+    assert.equal(Object.isFrozen(definition.capacity.resumeAnalyses), true);
   }
 });
 

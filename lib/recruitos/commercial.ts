@@ -24,6 +24,12 @@ export type LimitKey = (typeof LIMIT_KEYS)[number];
 export type BillingInterval = "month";
 export type SupportTier = "standard" | "priority";
 export type ConfiguredLimit = number | null;
+export type UsagePeriod = "day" | "month";
+
+export type PlanCapacity = Readonly<{
+  activeJobs: Readonly<{ amount: number; period: null }>;
+  resumeAnalyses: Readonly<{ amount: number; period: UsagePeriod }>;
+}>;
 
 export type PlanDefinition = Readonly<{
   key: PlanKey;
@@ -36,6 +42,7 @@ export type PlanDefinition = Readonly<{
   description: string;
   features: Readonly<Record<FeatureKey, boolean>>;
   limits: Readonly<Record<LimitKey, ConfiguredLimit>>;
+  capacity: PlanCapacity;
   supportTier: SupportTier | null;
   recommended: boolean;
 }>;
@@ -53,7 +60,6 @@ const ALL_CORE_FEATURES: Readonly<Record<FeatureKey, boolean>> = Object.freeze({
   humanReviewedActions: true,
 });
 
-// null means no numeric enforcement has been configured yet. It does not mean publicly "unlimited".
 const UNCONFIGURED_LIMITS: Readonly<Record<LimitKey, ConfiguredLimit>> = Object.freeze({
   activeJobs: null,
   candidateVolume: null,
@@ -62,39 +68,63 @@ const UNCONFIGURED_LIMITS: Readonly<Record<LimitKey, ConfiguredLimit>> = Object.
   batchSize: null,
 });
 
-function freezePlan(definition: Omit<PlanDefinition, "features" | "limits">): PlanDefinition {
+function makeCapacity(activeJobs: number, resumeAnalyses: number, period: UsagePeriod): PlanCapacity {
+  return Object.freeze({
+    activeJobs: Object.freeze({ amount: activeJobs, period: null }),
+    resumeAnalyses: Object.freeze({ amount: resumeAnalyses, period }),
+  });
+}
+
+function freezePlan(
+  definition: Omit<PlanDefinition, "features" | "limits" | "capacity">,
+  capacity: PlanCapacity,
+): PlanDefinition {
   return Object.freeze({
     ...definition,
     features: ALL_CORE_FEATURES,
-    limits: UNCONFIGURED_LIMITS,
+    capacity,
+    limits: Object.freeze({
+      ...UNCONFIGURED_LIMITS,
+      activeJobs: capacity.activeJobs.amount,
+      resumeAnalysisVolume: capacity.resumeAnalyses.amount,
+    }),
   });
 }
 
 export const PLAN_CATALOG: Readonly<Record<PlanKey, PlanDefinition>> = Object.freeze({
-  free: freezePlan({
-    key: "free",
-    displayName: "Free",
-    price: Object.freeze({ amount: 0, currency: "USD", interval: null }),
-    description: "Entry plan for RecruitOS.",
-    supportTier: null,
-    recommended: false,
-  }),
-  standard: freezePlan({
-    key: "standard",
-    displayName: "Standard",
-    price: Object.freeze({ amount: 39, currency: "USD", interval: "month" }),
-    description: "Recommended commercial plan for RecruitOS.",
-    supportTier: null,
-    recommended: true,
-  }),
-  pro: freezePlan({
-    key: "pro",
-    displayName: "Pro",
-    price: Object.freeze({ amount: 69, currency: "USD", interval: "month" }),
-    description: "Higher-volume paid plan for RecruitOS.",
-    supportTier: null,
-    recommended: false,
-  }),
+  free: freezePlan(
+    {
+      key: "free",
+      displayName: "Free",
+      price: Object.freeze({ amount: 0, currency: "USD", interval: null }),
+      description: "Entry plan for RecruitOS.",
+      supportTier: null,
+      recommended: false,
+    },
+    makeCapacity(1, 2, "day"),
+  ),
+  standard: freezePlan(
+    {
+      key: "standard",
+      displayName: "Standard",
+      price: Object.freeze({ amount: 39, currency: "USD", interval: "month" }),
+      description: "Recommended commercial plan for RecruitOS.",
+      supportTier: null,
+      recommended: true,
+    },
+    makeCapacity(25, 300, "month"),
+  ),
+  pro: freezePlan(
+    {
+      key: "pro",
+      displayName: "Pro",
+      price: Object.freeze({ amount: 69, currency: "USD", interval: "month" }),
+      description: "Higher-volume paid plan for RecruitOS.",
+      supportTier: null,
+      recommended: false,
+    },
+    makeCapacity(100, 1000, "month"),
+  ),
 });
 
 export function isPlanKey(value: unknown): value is PlanKey {
@@ -111,6 +141,10 @@ export function isLimitKey(value: unknown): value is LimitKey {
 
 export function getPlanDefinition(planKey: unknown): PlanDefinition | null {
   return isPlanKey(planKey) ? PLAN_CATALOG[planKey] : null;
+}
+
+export function getPlanCapacity(planKey: unknown): PlanCapacity | null {
+  return getPlanDefinition(planKey)?.capacity ?? null;
 }
 
 export function getPlanLimits(planKey: unknown): Readonly<Record<LimitKey, ConfiguredLimit>> | null {

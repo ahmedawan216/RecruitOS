@@ -2,6 +2,7 @@
 
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { analyzeResume } from "@/app/actions/analyze-resume";
+import type { PlanLimitReached } from "@/lib/recruitos/plan-limits";
 
 export type BatchItemResult = {
   name: string;
@@ -9,6 +10,7 @@ export type BatchItemResult = {
   error?: string;
   resumeId?: string;
   candidateId?: string;
+  limit?: PlanLimitReached;
 };
 
 /** Analyze already-uploaded resumes for a job. Upload/extraction is kept separate. */
@@ -30,7 +32,9 @@ export async function batchAnalyzeResumes(jobId: string, resumeIds: string[]): P
         error: analysisResult.success ? undefined : analysisResult.error,
         resumeId,
         candidateId: analysisResult.candidateId,
+        limit: analysisResult.limit,
       });
+      if (analysisResult.limit) break;
     } catch (error) {
       console.error("Batch analysis error:", error);
       results.push({ name: resumeId, success: false, error: "This resume could not be analyzed.", resumeId });

@@ -2,16 +2,28 @@
 
 RecruitOS launch plans are defined centrally in `lib/recruitos/commercial.ts`:
 
-- **Free** — $0, entry plan.
-- **Standard** — $39 USD/month, recommended commercial plan.
-- **Pro** — $69 USD/month, higher-volume paid plan.
+- **Free**: $0, entry plan.
+- **Standard**: $39 USD/month, recommended commercial plan.
+- **Pro**: $69 USD/month, higher-volume paid plan.
 
-Core RecruitOS product capabilities remain available across all three plans. Commercial differentiation is intended to come primarily from capacity, volume, batch size, support, and operational convenience rather than artificial feature removal.
+Core RecruitOS product capabilities remain available across all three plans. Plans differ by capacity rather than removing core recruiting workflows.
 
-Numeric capacity limits are intentionally not locked yet. A `null` limit means no enforcement has been configured and must not block usage; it does not make a public promise of unlimited usage. Usage enforcement remains Phase 3D work.
+Phase 3D enforces only these capacities:
 
-The default effective user plan is **Free**. **Standard** is only the recommended commercial plan and must not be treated as the default entitlement.
+| Plan | Active jobs | Resume analyses |
+| --- | ---: | ---: |
+| Free | 1 | 2 per UTC calendar day |
+| Standard | 25 | 300 per UTC calendar month |
+| Pro | 100 | 1,000 per UTC calendar month |
 
-Phase 3C integrates Paddle Billing Sandbox without creating a second plan catalog. Standard and Pro map to server-configured Paddle price IDs; Free has no Paddle product or price. The effective plan is resolved server-side from signed Paddle subscription webhook state stored in Supabase. Browser checkout completion, URL parameters, local storage, and client-submitted plan/price data are never entitlement authority.
+Candidate volume, command executions, and batch-size commercial limits remain unconfigured and are not enforced by Phase 3D.
+
+Active-job creation and reopening are enforced transactionally in Postgres against jobs owned by the authenticated user whose `lifecycle_status` is `open`. Resume-analysis capacity is reserved server-side after the requested resume and job are validated, before expensive analysis work begins. A small internal usage ledger plus per-user transaction locking prevents straightforward concurrent-request bypass and avoids double-counting the same resume/job retry within one usage window.
+
+The default effective user plan remains **Free**. **Standard** is only the recommended commercial plan and must not be treated as the default entitlement.
+
+Paddle Billing remains the authority for Standard and Pro entitlement. The effective plan is resolved server-side from signed Paddle subscription webhook state stored in Supabase. Browser checkout completion, URL parameters, local storage, and client-submitted plan, count, or user data are never entitlement authority.
+
+Public plan comparison remains on https://operationos.org/pricing. RecruitOS only shows contextual upgrade guidance when a protected action reaches its configured capacity.
 
 See `docs/paddle-billing.md` for the billing architecture and Sandbox setup.
