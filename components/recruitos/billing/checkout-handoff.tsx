@@ -60,7 +60,6 @@ export function CheckoutHandoff({
     } catch {
       startedRef.current = false;
       setState("error");
-      setMessage("We couldn't open secure checkout.");
     }
   }, [plan]);
 
