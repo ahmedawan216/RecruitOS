@@ -63,10 +63,13 @@ test("checkout completion never grants entitlement in browser state", () => {
   assert.ok(checkoutClient.includes("activated only after the verified billing webhook confirms your subscription"));
 });
 
-test("existing paid subscribers are sent to the Paddle portal instead of duplicate checkout", () => {
-  assert.ok(checkoutPage.includes("ExistingPaidPlanHandoff"));
+test("verified paid subscribers bypass fresh checkout and use Paddle subscription management", () => {
+  assert.ok(checkoutPage.includes('effectivePlan === "free"'));
+  assert.ok(checkoutPage.includes("<CheckoutHandoff"));
+  assert.ok(checkoutPage.includes("<ExistingPaidPlanHandoff"));
   assert.ok(checkoutClient.includes('fetch("/api/recruitos/billing/portal"'));
-  assert.ok(checkoutClient.includes("will not start a duplicate subscription"));
+  assert.ok(checkoutClient.includes("const samePlan = currentPlan === selectedPlan"));
+  assert.ok(checkoutClient.includes("already verified on your account"));
   assert.ok(checkoutClient.includes("without creating a second subscription"));
 });
 

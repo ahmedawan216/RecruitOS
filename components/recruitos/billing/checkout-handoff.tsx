@@ -20,14 +20,12 @@ export function CheckoutHandoff({
   priceLabel: string;
 }) {
   const [state, setState] = useState<CheckoutState>("idle");
-  const [message, setMessage] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   const startCheckout = useCallback(async () => {
     if (startedRef.current) return;
     startedRef.current = true;
     setState("preparing");
-    setMessage(null);
 
     try {
       const response = await fetch("/api/recruitos/billing/checkout", {
