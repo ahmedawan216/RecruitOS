@@ -25,6 +25,7 @@ import {
 import { signOut } from "@/app/auth/actions";
 import type { BillingPanelData } from "@/components/recruitos/billing/billing-panel";
 import { SettingsModal, type RecruitOSAccountSettings, type SettingsSection } from "@/components/recruitos/settings/settings-modal";
+import { RecruitOSBrand } from "@/components/ui/recruitos-brand";
 import { getPlanDefinition } from "@/lib/recruitos/commercial";
 import { cn } from "@/lib/utils";
 
@@ -41,11 +42,10 @@ function RecruitOSMark() {
   return (
     <Link
       href={workspaceHref}
-      className="inline-flex min-h-11 min-w-0 items-center gap-2.5 rounded-md text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="inline-flex min-h-11 min-w-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       aria-label="RecruitOS workspace home"
     >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0e6e6e] text-sm font-semibold text-white" aria-hidden="true">R</span>
-      <span className="truncate font-sans text-[15px] font-semibold tracking-[-0.01em]">RecruitOS</span>
+      <RecruitOSBrand variant="horizontal-white" className="w-[126px]" priority />
     </Link>
   );
 }

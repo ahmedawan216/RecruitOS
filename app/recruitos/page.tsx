@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Check, FileSearch, MessageSquareText, ShieldCheck, Users } from "lucide-react";
 
+import { RecruitOSBrand } from "@/components/ui/recruitos-brand";
+
 export const metadata: Metadata = {
   title: "RecruitOS | Operational recruiting workspace",
   description: "Run recruiting work across jobs, candidates, resume analysis, contextual commands, and human-reviewed actions in one RecruitOS workspace.",
@@ -12,6 +14,14 @@ export const metadata: Metadata = {
     url: "/",
     siteName: "RecruitOS",
     type: "website",
+    images: [
+      {
+        url: "/brand/recruitos/recruitos-social-preview-1200x630.png",
+        width: 1200,
+        height: 630,
+        alt: "RecruitOS operational recruiting workspace",
+      },
+    ],
   },
 };
 
@@ -32,8 +42,8 @@ export default function RecruitOSLandingPage() {
       <section className="px-5 pb-16 pt-20 sm:px-8 sm:pb-20 sm:pt-28 lg:pb-24">
         <div className="mx-auto grid max-w-[1180px] gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div className="max-w-[680px]">
-            <p className="product-kicker">RecruitOS by OperationOS</p>
-            <h1 className="mt-5 font-display text-[clamp(42px,7vw,76px)] font-semibold leading-[0.98] tracking-[-0.045em] text-ink">Run recruiting work without losing control.</h1>
+            <RecruitOSBrand variant="endorsed-black" className="w-[190px]" priority />
+            <h1 className="mt-7 font-display text-[clamp(42px,7vw,76px)] font-semibold leading-[0.98] tracking-[-0.045em] text-ink">Run recruiting work without losing control.</h1>
             <p className="mt-7 max-w-[620px] text-[17px] leading-8 text-ink-dim">RecruitOS gives recruiters a structured workspace for jobs, candidates, and resume analysis, plus natural-language commands when speed matters. Consequential changes stop for human review before anything is applied.</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row"><Link href="/sign-up" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-accent px-5 text-sm font-semibold text-white transition-colors duration-[180ms] hover:bg-[#0a5555]">Create RecruitOS account <ArrowRight className="size-4" aria-hidden="true" /></Link><Link href={baseHref} className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border bg-surface px-5 text-sm font-semibold text-ink transition-colors duration-[180ms] hover:border-border-strong hover:bg-surface-2">Open workspace</Link></div>
             <p className="mt-4 text-xs leading-5 text-ink-faint">Use the interface when you want control. Tell RecruitOS what you want when you want speed.</p>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { RecruitOSBrand } from "@/components/ui/recruitos-brand";
 import { getPaddleClient } from "@/lib/recruitos/paddle-client";
 import type { PaidPlanKey } from "@/lib/recruitos/paddle-billing";
 
@@ -69,8 +70,8 @@ export function CheckoutHandoff({
 
   return (
     <div className="product-surface mx-auto max-w-lg p-6 text-center sm:p-8">
-      <p className="product-kicker">RecruitOS by OperationOS</p>
-      <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
+      <RecruitOSBrand variant="endorsed-black" className="mx-auto w-[168px]" priority />
+      <h1 className="mt-6 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
         Complete your RecruitOS {displayName} setup
       </h1>
 
@@ -159,8 +160,8 @@ export function ExistingPaidPlanHandoff({
 
   return (
     <div className="product-surface mx-auto max-w-lg p-6 text-center sm:p-8">
-      <p className="product-kicker">RecruitOS by OperationOS</p>
-      <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
+      <RecruitOSBrand variant="endorsed-black" className="mx-auto w-[168px]" priority />
+      <h1 className="mt-6 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
         {samePlan ? `You're already on RecruitOS ${currentPlanName}.` : "Manage your RecruitOS plan in Paddle."}
       </h1>
       <p className="mt-3 text-sm leading-6 text-ink-dim">

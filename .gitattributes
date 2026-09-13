@@ -1,0 +1,3 @@
+# Preserve approved RecruitOS vector source bytes exactly as supplied.
+/app/icon.svg -text
+/public/brand/recruitos/*.svg -text

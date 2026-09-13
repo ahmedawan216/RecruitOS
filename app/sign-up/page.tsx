@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AuthForm } from "@/components/auth/auth-form";
 import { PaidAuthContext } from "@/components/auth/paid-auth-context";
+import { RecruitOSBrand } from "@/components/ui/recruitos-brand";
 import { getPaidPurchaseContextFromRedirect } from "@/lib/recruitos/purchase-context";
 import { getSafeRedirectPath } from "@/lib/supabase/auth";
 
@@ -23,8 +24,8 @@ export default async function SignUpPage({
     <main className="min-h-screen bg-bg px-5 pb-16 pt-20 sm:px-8 sm:pt-24">
       <div className="mx-auto grid max-w-[980px] gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
         <aside className="hidden lg:block">
-          <p className="product-kicker">RecruitOS by OperationOS</p>
-          <h1 className="mt-4 max-w-[440px] font-display text-4xl font-semibold leading-tight tracking-[-0.035em] text-ink">
+          <RecruitOSBrand variant="endorsed-black" className="w-[184px]" priority />
+          <h1 className="mt-6 max-w-[440px] font-display text-4xl font-semibold leading-tight tracking-[-0.035em] text-ink">
             {purchaseContext ? `Continue with RecruitOS ${purchaseContext.displayName}.` : "One workspace for direct recruiting control and faster command-driven work."}
           </h1>
           <p className="mt-5 max-w-[460px] text-sm leading-7 text-ink-dim">

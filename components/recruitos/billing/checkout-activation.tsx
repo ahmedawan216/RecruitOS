@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { RecruitOSBrand } from "@/components/ui/recruitos-brand";
 import type { PaidPlanKey } from "@/lib/recruitos/paddle-billing";
 
 type ActivationState = "checking" | "ready" | "delayed";
@@ -69,8 +70,8 @@ export function CheckoutActivation({
   if (state === "ready") {
     return (
       <div className="product-surface mx-auto max-w-lg p-6 text-center sm:p-8" role="status">
-        <p className="product-kicker">RecruitOS by OperationOS</p>
-        <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
+        <RecruitOSBrand variant="endorsed-black" className="mx-auto w-[168px]" priority />
+        <h1 className="mt-6 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
           RecruitOS {displayName} is ready.
         </h1>
         <p className="mt-3 text-sm leading-6 text-ink-dim">
@@ -89,8 +90,8 @@ export function CheckoutActivation({
   if (state === "delayed") {
     return (
       <div className="product-surface mx-auto max-w-lg p-6 text-center sm:p-8" role="status">
-        <p className="product-kicker">RecruitOS by OperationOS</p>
-        <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
+        <RecruitOSBrand variant="endorsed-black" className="mx-auto w-[168px]" priority />
+        <h1 className="mt-6 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
           Access is still being confirmed.
         </h1>
         <p className="mt-3 text-sm leading-6 text-ink-dim">
@@ -108,8 +109,8 @@ export function CheckoutActivation({
 
   return (
     <div className="product-surface mx-auto max-w-lg p-6 text-center sm:p-8" role="status" aria-live="polite">
-      <p className="product-kicker">RecruitOS by OperationOS</p>
-      <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
+      <RecruitOSBrand variant="endorsed-black" className="mx-auto w-[168px]" priority />
+      <h1 className="mt-6 font-display text-3xl font-semibold tracking-[-0.03em] text-ink">
         Payment received. We&apos;re activating RecruitOS.
       </h1>
       <p className="mt-3 text-sm leading-6 text-ink-dim">

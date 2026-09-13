@@ -25,11 +25,14 @@ test("global RecruitOS product styling uses approved typography and palette", ()
   assert.match(css, /#c13b34/i);
 });
 
-test("RecruitOS identity is typographic and does not borrow an H1 master mark", () => {
+test("RecruitOS identity uses the official product artwork and does not borrow an H1 master mark", () => {
   const logo = read("components/ui/logo.tsx");
-  assert.match(logo, />RecruitOS</);
-  assert.match(logo, /by OperationOS/);
+  const brand = read("components/ui/recruitos-brand.tsx");
+  assert.match(logo, /RecruitOSBrand/);
+  assert.match(brand, /recruitos-horizontal-black\.svg/);
+  assert.match(brand, /recruitos-endorsed-black\.svg/);
   assert.doesNotMatch(logo, /H1|OperationOSMark|operationos-logo/);
+  assert.doesNotMatch(brand, /H1|OperationOSMark|operationos-logo/);
 });
 
 test("auth surfaces preserve accessible form behavior and coherent callback errors", () => {

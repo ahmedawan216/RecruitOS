@@ -32,6 +32,7 @@ export const metadata: Metadata = {
     template: "%s | RecruitOS",
   },
   description: siteConfig.description,
+  applicationName: siteConfig.name,
   keywords: [
     "RecruitOS",
     "recruiting workspace",
@@ -45,11 +46,27 @@ export const metadata: Metadata = {
     description: siteConfig.description,
     siteName: siteConfig.name,
     type: "website",
+    images: [
+      {
+        url: "/brand/recruitos/recruitos-social-preview-1200x630.png",
+        width: 1200,
+        height: 630,
+        alt: "RecruitOS operational recruiting workspace",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: siteConfig.title,
     description: siteConfig.description,
+    images: ["/brand/recruitos/recruitos-social-preview-1200x630.png"],
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
