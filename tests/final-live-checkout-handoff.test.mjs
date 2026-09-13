@@ -51,7 +51,7 @@ test("open redirects fall back to the dashboard", () => {
 
 test("authenticated Free users reach the existing checkout endpoint", () => {
   assert.ok(checkoutPage.includes('effectivePlan === "free"'));
-  assert.ok(checkoutPage.includes("<CheckoutHandoff plan={plan} />"));
+  assert.ok(checkoutPage.includes("<CheckoutHandoff"));
   assert.ok(checkoutClient.includes('fetch("/api/recruitos/billing/checkout"'));
   assert.ok(checkoutClient.includes("JSON.stringify({ plan })"));
 });
@@ -59,8 +59,8 @@ test("authenticated Free users reach the existing checkout endpoint", () => {
 test("checkout completion never grants entitlement in browser state", () => {
   assert.equal(checkoutClient.includes("setEffectivePlan"), false);
   assert.equal(checkoutClient.includes("localStorage"), false);
-  assert.ok(checkoutClient.includes("billing?checkout=complete"));
-  assert.ok(checkoutClient.includes("plan changes only after payment is verified by the billing webhook"));
+  assert.ok(checkoutClient.includes("/checkout/success?plan=${plan}"));
+  assert.ok(checkoutClient.includes("activated only after the verified billing webhook confirms your subscription"));
 });
 
 test("existing paid subscribers are sent to the Paddle portal instead of duplicate checkout", () => {

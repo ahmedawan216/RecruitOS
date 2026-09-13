@@ -1,6 +1,11 @@
 import "server-only";
 
-import { getPlanForPaddlePriceId, type PaidPlanKey } from "@/lib/recruitos/paddle-billing";
+import type { PlanKey } from "@/lib/recruitos/commercial";
+import {
+  getPlanForPaddlePriceId,
+  isEntitlingPaddleStatus,
+  type PaidPlanKey,
+} from "@/lib/recruitos/paddle-billing";
 import { getPaddleServerClient } from "@/lib/recruitos/paddle-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { User } from "@supabase/supabase-js";
@@ -31,8 +36,6 @@ export async function getOrCreatePaddleCustomer(user: User): Promise<BillingCust
 
   if (!inserted.error && inserted.data) return inserted.data;
 
-  // A concurrent checkout may have won the unique user mapping race. Re-read
-  // the authoritative mapping instead of trusting the newly-created remote ID.
   const recovered = await supabaseAdmin
     .from("recruitos_paddle_customers")
     .select("user_id,paddle_customer_id")
@@ -63,6 +66,33 @@ export async function getBillingOverview(userId: string) {
   return {
     paddleCustomerId: customerResult.data?.paddle_customer_id ?? null,
     subscriptions: subscriptionsResult.data ?? [],
+  };
+}
+
+type BillingSubscriptionRow = Awaited<ReturnType<typeof getBillingOverview>>["subscriptions"][number];
+
+export function isVerifiedCurrentBillingSubscription(
+  subscription: BillingSubscriptionRow,
+  effectivePlan: PlanKey,
+): boolean {
+  if (effectivePlan === "free" || !isEntitlingPaddleStatus(subscription.status)) return false;
+  const mappedPlan = getPlanForPaddlePriceId(subscription.paddle_price_id);
+  return mappedPlan === effectivePlan && subscription.plan === mappedPlan;
+}
+
+export async function getVerifiedBillingPresentation(userId: string, effectivePlan: PlanKey) {
+  if (effectivePlan === "free") {
+    return { paddleCustomerId: null, subscriptions: [] as BillingSubscriptionRow[] };
+  }
+
+  const overview = await getBillingOverview(userId);
+  const subscriptions = overview.subscriptions.filter((subscription) =>
+    isVerifiedCurrentBillingSubscription(subscription, effectivePlan),
+  );
+
+  return {
+    paddleCustomerId: subscriptions[0]?.paddle_customer_id ?? null,
+    subscriptions,
   };
 }
 

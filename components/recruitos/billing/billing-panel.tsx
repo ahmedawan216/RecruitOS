@@ -28,13 +28,7 @@ function formatStatus(value: string) {
     .join(" ");
 }
 
-export function BillingPanel({
-  data,
-  checkoutComplete = false,
-}: {
-  data: BillingPanelData;
-  checkoutComplete?: boolean;
-}) {
+export function BillingPanel({ data }: { data: BillingPanelData }) {
   const plan = getPlanDefinition(data.effectivePlan);
   if (!plan) return null;
 
@@ -45,12 +39,6 @@ export function BillingPanel({
 
   return (
     <div data-recruitos-billing-panel className="space-y-5">
-      {checkoutComplete ? (
-        <div role="status" className="rounded-xl border border-info/30 bg-surface-2 px-4 py-3 text-sm leading-6 text-ink">
-          Paddle Checkout completed. Your RecruitOS plan changes only after the signed Paddle webhook is verified and synchronized.
-        </div>
-      ) : null}
-
       <section className="rounded-xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="current-billing-plan">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">Current plan</p>
         <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
@@ -87,7 +75,7 @@ export function BillingPanel({
         </div>
 
         <div className="mt-5">
-          <BillingActions canManageBilling={Boolean(data.paddleCustomerId)} />
+          <BillingActions canManageBilling={Boolean(isPaid && data.paddleCustomerId && data.currentSubscription)} />
         </div>
       </section>
 

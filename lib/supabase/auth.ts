@@ -90,10 +90,10 @@ export function getSafeRedirectPath(value: FormDataEntryValue | string | null | 
     return parsed.pathname + parsed.search;
   }
 
-  if (parsed.pathname === "/checkout") {
+  if (parsed.pathname === "/checkout" || parsed.pathname === "/checkout/success") {
     const plan = parsed.searchParams.get("plan");
     if (isPaidPlanKey(plan) && parsed.searchParams.size === 1) {
-      return `/checkout?plan=${plan}`;
+      return `${parsed.pathname}?plan=${plan}`;
     }
   }
 

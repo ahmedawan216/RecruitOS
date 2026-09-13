@@ -3,12 +3,10 @@ import { IBM_Plex_Sans, Public_Sans } from "next/font/google";
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import type { BillingPanelData } from "@/components/recruitos/billing/billing-panel";
-import { getBillingOverview } from "@/lib/recruitos/billing-server";
+import { getVerifiedBillingPresentation } from "@/lib/recruitos/billing-server";
 import { getEffectiveUserPlan } from "@/lib/recruitos/effective-plan-server";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 
-// SIL Open Font License fonts, downloaded at build time and served by Next.js.
-// Scoped to RecruitOS product UI; public pages keep their existing typography.
 const productUI = Public_Sans({ subsets: ["latin"], variable: "--font-product-ui", display: "swap" });
 const productDisplay = IBM_Plex_Sans({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-product-display", display: "swap" });
 
@@ -21,19 +19,13 @@ function getDisplayName(user: Awaited<ReturnType<typeof requireAuthenticatedUser
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await requireAuthenticatedUser();
-  const [effectivePlan, overview] = await Promise.all([
-    getEffectiveUserPlan(),
-    getBillingOverview(user.id).catch((error) => {
-      console.error("RecruitOS billing overview lookup failed:", error);
-      return { paddleCustomerId: null, subscriptions: [] };
-    }),
-  ]);
+  const effectivePlan = await getEffectiveUserPlan();
+  const overview = await getVerifiedBillingPresentation(user.id, effectivePlan).catch((error) => {
+    console.error("RecruitOS verified billing presentation lookup failed:", error);
+    return { paddleCustomerId: null, subscriptions: [] };
+  });
 
-  const subscription =
-    overview.subscriptions.find((item) => item.plan === effectivePlan) ??
-    overview.subscriptions[0] ??
-    null;
-
+  const subscription = overview.subscriptions[0] ?? null;
   const billing: BillingPanelData = {
     effectivePlan,
     paddleCustomerId: overview.paddleCustomerId,
