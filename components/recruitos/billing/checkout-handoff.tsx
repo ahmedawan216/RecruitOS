@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getPaddleClient } from "@/lib/recruitos/paddle-client";
 import type { PaidPlanKey } from "@/lib/recruitos/paddle-billing";
@@ -15,7 +15,7 @@ export function CheckoutHandoff({ plan }: { plan: PaidPlanKey }) {
   const [message, setMessage] = useState<string | null>(null);
   const startedRef = useRef(false);
 
-  async function startCheckout() {
+  const startCheckout = useCallback(async () => {
     if (startedRef.current) return;
     startedRef.current = true;
     setState("preparing");
@@ -56,11 +56,11 @@ export function CheckoutHandoff({ plan }: { plan: PaidPlanKey }) {
       setState("error");
       setMessage("Secure checkout could not be prepared. Please try again.");
     }
-  }
+  }, [plan]);
 
   useEffect(() => {
     void startCheckout();
-  }, []);
+  }, [startCheckout]);
 
   return (
     <div className="product-surface mx-auto max-w-lg p-6 text-center sm:p-8">
