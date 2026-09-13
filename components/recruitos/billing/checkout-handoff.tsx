@@ -108,6 +108,14 @@ export function CheckoutHandoff({
         )}
       </div>
 
+      {state === "opened" ? (
+        <div className="mt-6">
+          <Link href={PRICING_URL} className="text-sm font-medium text-accent underline-offset-4 hover:underline">
+            Back to pricing
+          </Link>
+        </div>
+      ) : null}
+
       {state === "error" ? (
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <button type="button" onClick={() => void startCheckout()} className="workspace-action">
