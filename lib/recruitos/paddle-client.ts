@@ -4,18 +4,22 @@ import { initializePaddle, type Paddle } from "@paddle/paddle-js";
 
 let paddlePromise: Promise<Paddle | undefined> | null = null;
 
-export function getPaddleClient(): Promise<Paddle | undefined> {
-  if (process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT !== "sandbox") {
-    return Promise.reject(new Error("Paddle Checkout is configured for sandbox only."));
-  }
+function getClientEnvironment() {
+  const value = process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT?.trim().toLowerCase();
+  if (value === "sandbox") return "sandbox" as const;
+  if (value === "production" || value === "live") return "production" as const;
+  throw new Error("Paddle Checkout environment is not configured.");
+}
 
+export function getPaddleClient(): Promise<Paddle | undefined> {
   const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
   if (!token) return Promise.reject(new Error("Paddle client token is not configured."));
 
+  const environment = getClientEnvironment();
   if (!paddlePromise) {
     paddlePromise = initializePaddle({
-      environment: "sandbox",
       token,
+      ...(environment === "sandbox" ? { environment: "sandbox" as const } : {}),
     });
   }
 

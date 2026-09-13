@@ -3,6 +3,7 @@ import "server-only";
 import { createClient, type SupportedStorage } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
+import { isPaidPlanKey } from "@/lib/recruitos/paddle-billing";
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/supabase/auth-cookies";
 
 const cookieOptions = {
@@ -43,7 +44,7 @@ export function createSupabaseAuthClient(accessToken?: string, storage?: Support
       flowType: "pkce",
       ...(storage ? { storage } : {}),
     },
-    ...(accessToken ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } } : {}),
+    ...(accessToken ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
   });
 }
 
@@ -72,8 +73,29 @@ export async function getAuthTokens() {
   };
 }
 
-export function getSafeRedirectPath(value: FormDataEntryValue | null) {
+export function getSafeRedirectPath(value: FormDataEntryValue | string | null | undefined) {
   if (typeof value !== "string") return "/dashboard";
   if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
-  return value;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value, "https://recruitos.internal");
+  } catch {
+    return "/dashboard";
+  }
+
+  if (parsed.origin !== "https://recruitos.internal") return "/dashboard";
+
+  if (parsed.pathname === "/dashboard" || parsed.pathname.startsWith("/dashboard/")) {
+    return parsed.pathname + parsed.search;
+  }
+
+  if (parsed.pathname === "/checkout") {
+    const plan = parsed.searchParams.get("plan");
+    if (isPaidPlanKey(plan) && parsed.searchParams.size === 1) {
+      return `/checkout?plan=${plan}`;
+    }
+  }
+
+  return "/dashboard";
 }

@@ -32,6 +32,7 @@ export async function signUp(_previousState: AuthState, formData: FormData): Pro
   const email = normalizeEmail(formData.get("email"));
   const password = normalizePassword(formData.get("password"));
   const confirmPassword = normalizePassword(formData.get("confirmPassword"));
+  const next = getSafeRedirectPath(formData.get("next"));
   if (!email || !password || !confirmPassword) return { error: "Complete all required fields." };
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
   if (password !== confirmPassword) return { error: "Passwords do not match." };
@@ -39,17 +40,20 @@ export async function signUp(_previousState: AuthState, formData: FormData): Pro
   const cookieStore = await cookies();
   const supabase = createSupabaseAuthClient(undefined, createCookieStorage(cookieStore));
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const callbackUrl = new URL("/auth/callback", siteUrl.replace(/\/$/, ""));
+  callbackUrl.searchParams.set("next", next);
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${siteUrl.replace(/\/$/, "")}/auth/callback` },
+    options: { emailRedirectTo: callbackUrl.toString() },
   });
 
   if (error) return { error: error.message };
 
   if (data.session) {
     setSessionCookies(cookieStore, data.session.access_token, data.session.refresh_token);
-    redirect("/dashboard");
+    redirect(next);
   }
 
   return { success: "Account created. Check your email to confirm your account, then sign in." };

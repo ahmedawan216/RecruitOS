@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-import { createCookieStorage, createSupabaseAuthClient } from "@/lib/supabase/auth";
+import { createCookieStorage, createSupabaseAuthClient, getSafeRedirectPath } from "@/lib/supabase/auth";
 import { clearSessionCookies, setSessionCookies } from "@/lib/supabase/auth-cookies";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next");
-  const safeNext = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  const safeNext = getSafeRedirectPath(url.searchParams.get("next"));
 
   if (!code) return NextResponse.redirect(new URL("/sign-in?error=invalid-link", url.origin));
 
@@ -19,7 +18,10 @@ export async function GET(request: Request) {
   if (error || !data.session) {
     console.error("Supabase auth callback error:", error);
     clearSessionCookies(cookieStore);
-    return NextResponse.redirect(new URL("/sign-in?error=auth-callback", url.origin));
+    const signInUrl = new URL("/sign-in", url.origin);
+    signInUrl.searchParams.set("error", "auth-callback");
+    signInUrl.searchParams.set("next", safeNext);
+    return NextResponse.redirect(signInUrl);
   }
 
   setSessionCookies(cookieStore, data.session.access_token, data.session.refresh_token);

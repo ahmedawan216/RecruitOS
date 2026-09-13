@@ -22,6 +22,10 @@ export function AuthForm({ mode, next = "/dashboard" }: { mode: "sign-in" | "sig
   const action = mode === "sign-in" ? signIn : signUp;
   const [state, formAction] = useActionState(action, initialState);
   const messageId = state.error || state.success ? "auth-form-message" : undefined;
+  const alternateHref = mode === "sign-in"
+    ? `/sign-up?next=${encodeURIComponent(next)}`
+    : `/sign-in?next=${encodeURIComponent(next)}`;
+
   return <form action={formAction} className="space-y-5" noValidate={false}>
     <input type="hidden" name="next" value={next} />
     <div><label htmlFor="email" className="mb-2 block text-sm font-medium text-ink">Work email</label><input id="email" name="email" type="email" autoComplete="email" required aria-invalid={Boolean(state.error) || undefined} aria-describedby={messageId} className="workspace-control" placeholder="you@company.com" /></div>
@@ -30,6 +34,6 @@ export function AuthForm({ mode, next = "/dashboard" }: { mode: "sign-in" | "sig
     {state.error ? <div id="auth-form-message" role="alert" className="rounded-lg border border-danger/25 bg-danger/[0.05] px-4 py-3 text-sm leading-6 text-danger">{state.error}</div> : null}
     {state.success ? <div id="auth-form-message" role="status" className="rounded-lg border border-success/25 bg-success/[0.05] px-4 py-3 text-sm leading-6 text-success">{state.success}</div> : null}
     <SubmitButton mode={mode} />
-    <p className="text-center text-sm text-ink-dim">{mode === "sign-in" ? "New to RecruitOS? " : "Already have an account? "}<Link href={mode === "sign-in" ? "/sign-up" : "/sign-in"} className="font-medium text-accent hover:underline">{mode === "sign-in" ? "Create an account" : "Sign in"}</Link></p>
+    <p className="text-center text-sm text-ink-dim">{mode === "sign-in" ? "New to RecruitOS? " : "Already have an account? "}<Link href={alternateHref} className="font-medium text-accent hover:underline">{mode === "sign-in" ? "Create an account" : "Sign in"}</Link></p>
   </form>;
 }
