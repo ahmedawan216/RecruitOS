@@ -54,7 +54,7 @@ test("full Free Standard Pro pricing cards are no longer rendered inside Recruit
 
 test("current plan remains server-authoritative in the dashboard account experience", () => {
   assert.match(dashboardLayout, /getEffectiveUserPlan\(\)/);
-  assert.match(dashboardLayout, /getVerifiedBillingPresentation\\(user\\.id, effectivePlan\\)/);
+  assert.match(dashboardLayout, /getVerifiedBillingPresentation\(user\.id, effectivePlan\)/);
   assert.match(resolver, /requireAuthenticatedUser\(\)/);
   assert.match(resolver, /supabaseAdmin/);
   assert.match(resolver, /resolvePlanFromBillingRecords/);
