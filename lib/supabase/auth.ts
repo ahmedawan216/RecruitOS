@@ -44,7 +44,7 @@ export function createSupabaseAuthClient(accessToken?: string, storage?: Support
       flowType: "pkce",
       ...(storage ? { storage } : {}),
     },
-    ...(accessToken ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
+    ...(accessToken ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } } : {}),
   });
 }
 
