@@ -52,8 +52,8 @@ test("all current core RecruitOS capabilities remain available on every plan", (
 
 test("Phase 3D capacity limits are centralized while future limit categories remain unconfigured", () => {
   assert.deepEqual(getPlanCapacity("free"), {
-    activeJobs: { amount: 1, period: null },
-    resumeAnalyses: { amount: 2, period: "day" },
+    activeJobs: { amount: 3, period: null },
+    resumeAnalyses: { amount: 25, period: "month" },
   });
   assert.deepEqual(getPlanCapacity("standard"), {
     activeJobs: { amount: 25, period: null },

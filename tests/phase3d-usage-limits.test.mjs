@@ -11,6 +11,17 @@ const commercial = commercialModule.exports;
 
 const usageServer = readFileSync(new URL("../lib/recruitos/usage-server.ts", import.meta.url), "utf8");
 const planLimits = readFileSync(new URL("../lib/recruitos/plan-limits.ts", import.meta.url), "utf8");
+const compiledPlanLimits = ts.transpileModule(planLimits, { compilerOptions: { module: ts.ModuleKind.CommonJS } });
+const planLimitsModule = { exports: {} };
+new Function("exports", "module", "require", compiledPlanLimits.outputText)(
+  planLimitsModule.exports,
+  planLimitsModule,
+  (specifier) => {
+    if (specifier === "@/lib/recruitos/commercial") return commercial;
+    throw new Error(`Unexpected test import: ${specifier}`);
+  },
+);
+const { getUtcUsageWindow } = planLimitsModule.exports;
 const createJob = readFileSync(new URL("../app/actions/create-job.ts", import.meta.url), "utf8");
 const updateJob = readFileSync(new URL("../app/actions/update-job.ts", import.meta.url), "utf8");
 const analyzeResume = readFileSync(new URL("../app/actions/analyze-resume.ts", import.meta.url), "utf8");
@@ -26,8 +37,8 @@ const paddleBilling = readFileSync(new URL("../lib/recruitos/paddle-billing.ts",
 
 test("Phase 3D plan capacity is centralized with the approved limits", () => {
   assert.deepEqual(commercial.getPlanCapacity("free"), {
-    activeJobs: { amount: 1, period: null },
-    resumeAnalyses: { amount: 2, period: "day" },
+    activeJobs: { amount: 3, period: null },
+    resumeAnalyses: { amount: 25, period: "month" },
   });
   assert.deepEqual(commercial.getPlanCapacity("standard"), {
     activeJobs: { amount: 25, period: null },
@@ -41,19 +52,39 @@ test("Phase 3D plan capacity is centralized with the approved limits", () => {
 });
 
 test("configured limits block exactly at the approved boundaries", () => {
-  assert.equal(commercial.hasReachedLimit("free", "activeJobs", 0), false);
-  assert.equal(commercial.hasReachedLimit("free", "activeJobs", 1), true);
+  for (let jobNumber = 1; jobNumber <= 3; jobNumber += 1) {
+    assert.equal(commercial.hasReachedLimit("free", "activeJobs", jobNumber - 1), false, `Free job ${jobNumber} should be allowed`);
+  }
+  assert.equal(commercial.hasReachedLimit("free", "activeJobs", 3), true, "Free job 4 should be blocked");
   assert.equal(commercial.hasReachedLimit("standard", "activeJobs", 24), false);
   assert.equal(commercial.hasReachedLimit("standard", "activeJobs", 25), true);
   assert.equal(commercial.hasReachedLimit("pro", "activeJobs", 99), false);
   assert.equal(commercial.hasReachedLimit("pro", "activeJobs", 100), true);
 
-  assert.equal(commercial.hasReachedLimit("free", "resumeAnalysisVolume", 1), false);
-  assert.equal(commercial.hasReachedLimit("free", "resumeAnalysisVolume", 2), true);
+  for (let analysisNumber = 1; analysisNumber <= 25; analysisNumber += 1) {
+    assert.equal(commercial.hasReachedLimit("free", "resumeAnalysisVolume", analysisNumber - 1), false, `Free analysis ${analysisNumber} should be allowed`);
+  }
+  assert.equal(commercial.hasReachedLimit("free", "resumeAnalysisVolume", 25), true, "Free analysis 26 should be blocked");
   assert.equal(commercial.hasReachedLimit("standard", "resumeAnalysisVolume", 299), false);
   assert.equal(commercial.hasReachedLimit("standard", "resumeAnalysisVolume", 300), true);
   assert.equal(commercial.hasReachedLimit("pro", "resumeAnalysisVolume", 999), false);
   assert.equal(commercial.hasReachedLimit("pro", "resumeAnalysisVolume", 1000), true);
+});
+
+test("resume usage uses UTC calendar months and resets at the month boundary", () => {
+  const january = getUtcUsageWindow("month", new Date("2027-01-31T23:59:59.999Z"));
+  const february = getUtcUsageWindow("month", new Date("2027-02-01T00:00:00.000Z"));
+
+  assert.deepEqual(january, {
+    start: "2027-01-01T00:00:00.000Z",
+    end: "2027-02-01T00:00:00.000Z",
+  });
+  assert.deepEqual(february, {
+    start: "2027-02-01T00:00:00.000Z",
+    end: "2027-03-01T00:00:00.000Z",
+  });
+  assert.equal(january.end, february.start);
+  assert.notEqual(january.start, february.start);
 });
 
 test("all core RecruitOS capabilities remain enabled across every plan", () => {

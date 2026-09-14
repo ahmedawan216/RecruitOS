@@ -97,11 +97,11 @@ export const PLAN_CATALOG: Readonly<Record<PlanKey, PlanDefinition>> = Object.fr
       key: "free",
       displayName: "Free",
       price: Object.freeze({ amount: 0, currency: "USD", interval: null }),
-      description: "Entry plan for RecruitOS.",
+      description: "Free validation plan with no credit card required.",
       supportTier: null,
       recommended: false,
     },
-    makeCapacity(1, 2, "day"),
+    makeCapacity(3, 25, "month"),
   ),
   standard: freezePlan(
     {

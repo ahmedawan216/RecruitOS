@@ -2,7 +2,7 @@
 
 RecruitOS launch plans are defined centrally in `lib/recruitos/commercial.ts`:
 
-- **Free**: $0, entry plan.
+- **Free**: $0, no credit card required.
 - **Standard**: $39 USD/month, recommended commercial plan.
 - **Pro**: $69 USD/month, higher-volume paid plan.
 
@@ -12,7 +12,7 @@ Phase 3D enforces only these capacities:
 
 | Plan | Active jobs | Resume analyses |
 | --- | ---: | ---: |
-| Free | 1 | 2 per UTC calendar day |
+| Free | 3 | 25 per UTC calendar month |
 | Standard | 25 | 300 per UTC calendar month |
 | Pro | 100 | 1,000 per UTC calendar month |
 
