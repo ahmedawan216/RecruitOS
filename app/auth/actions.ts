@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createCookieStorage, createSupabaseAuthClient, getSafeRedirectPath } from "@/lib/supabase/auth";
 import { clearSessionCookies, setSessionCookies } from "@/lib/supabase/auth-cookies";
+import { getUserFacingAuthErrorMessage, SIGN_UP_ERROR_FALLBACK } from "@/lib/supabase/auth-errors";
 
 export type AuthState = { error?: string; success?: string };
 
@@ -49,7 +50,7 @@ export async function signUp(_previousState: AuthState, formData: FormData): Pro
     options: { emailRedirectTo: callbackUrl.toString() },
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error: getUserFacingAuthErrorMessage(error, SIGN_UP_ERROR_FALLBACK) };
 
   if (data.session) {
     setSessionCookies(cookieStore, data.session.access_token, data.session.refresh_token);
