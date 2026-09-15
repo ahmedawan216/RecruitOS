@@ -33,6 +33,59 @@ const {
 const seniorAccountant = { id: "11111111-1111-4111-8111-111111111111", title: "Senior Accountant" };
 const staffAccountant = { id: "22222222-2222-4222-8222-222222222222", title: "Staff Accountant" };
 
+test("first-session contextual commands resolve through the selected owned job", () => {
+  const examples = [
+    "Compare the candidates for this role and show me the strongest matches, key strengths, and any important gaps.",
+    "Review candidates for this job.",
+    "Rank candidates for the current role.",
+    "Find the strongest candidates for the selected position.",
+    "Review these candidates.",
+    "Review the strongest candidates.",
+  ];
+  for (const text of examples) {
+    const parsed = parseRecruitingCommand(text);
+    assert.equal(parsed.ok, true, text);
+    assert.deepEqual(resolveJobReference([seniorAccountant, staffAccountant], parsed.value.requestedJobText, seniorAccountant.id), { status: "resolved", job: seniorAccountant }, text);
+  }
+});
+
+test("contextual roles require a valid owned selection, never a guessed role", () => {
+  for (const reference of ["this role", "THIS JOB", "the current role", "selected position"]) {
+    assert.equal(resolveJobReference([seniorAccountant], reference).status, "not_found");
+    assert.equal(resolveJobReference([seniorAccountant], reference, staffAccountant.id).status, "not_found");
+    assert.equal(resolveJobReference([], reference, seniorAccountant.id).status, "not_found");
+  }
+});
+
+test("context recognition does not swallow explicit titles or mixed role references", () => {
+  for (const reference of ["Staff Accountant", "this role at Acme", "this role or Staff Accountant"]) {
+    assert.equal(resolveJobReference([seniorAccountant, staffAccountant], reference, seniorAccountant.id).status, "scope_conflict");
+  }
+  assert.deepEqual(resolveJobReference([seniorAccountant, staffAccountant], "Staff Accountant"), { status: "resolved", job: staffAccountant });
+  assert.equal(resolveJobReference([seniorAccountant, { ...staffAccountant, title: seniorAccountant.title }], seniorAccountant.title).status, "ambiguous");
+  const blocked = parseRecruitingCommand("Compare these candidates for this role and hire the strongest candidate.");
+  assert.equal(blocked.code, "CONSEQUENTIAL_ACTION");
+});
+
+test("comparison intent wins over requested gaps and uses the known candidate set", () => {
+  for (const text of ["Compare these candidates", "Compare the candidates for this role and show me the strongest matches, key strengths, and any important gaps.", "Compare current candidates"]) {
+    assert.deepEqual(commandModule.parseFollowUpCommand(text, 4), { ok: true, value: { intent: "compare_candidates", count: 4 }, requiresSemanticAnalysis: false });
+  }
+  assert.equal(commandModule.parseFollowUpCommand("Show only the gaps", 4).value.intent, "show_concerns");
+  assert.equal(commandModule.parseFollowUpCommand("Compare the top 2 and show gaps", 4).value.count, 2);
+  assert.equal(commandModule.parseFollowUpCommand("Compare the strongest candidates", 4).value.count, 3);
+});
+
+test("contextual comparisons preserve count bounds and consequential-action blocking", () => {
+  for (const count of [undefined, 0, 1, 9, 25, 2.5, NaN]) {
+    assert.equal(commandModule.parseFollowUpCommand("Compare these candidates", count).code, "AMBIGUOUS_COMPARISON");
+  }
+  for (const count of [2, 8]) assert.equal(commandModule.parseFollowUpCommand("Compare these candidates", count).value.count, count);
+  assert.equal(commandModule.parseFollowUpCommand("Compare the top 9", 4).code, "AMBIGUOUS_COMPARISON");
+  assert.equal(commandModule.parseFollowUpCommand("Compare these candidates for Staff Accountant", 4).code, "AMBIGUOUS_COMPARISON");
+  assert.equal(commandModule.parseFollowUpCommand("Compare these candidates and reject the weakest", 4).code, "CONSEQUENTIAL_ACTION");
+});
+
 test("supported review commands resolve to the allowlisted intent and job", () => {
   const examples = [
     "Review applicants for Senior Accountant and prepare the strongest 8.",

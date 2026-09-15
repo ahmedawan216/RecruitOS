@@ -254,7 +254,7 @@ export async function beginContextualFollowUp(executionId: string, input: unknow
   const state = asObject(row.work_state);
   if (state.phase2dLastFollowUpKey === validated.data.idempotencyKey) return { ok: true as const, duplicate: true, execution: snapshot(row), requiresWork: false };
 
-  const parsed = parseFollowUpCommand(validated.data.commandText);
+  const parsed = parseFollowUpCommand(validated.data.commandText, current.candidates.length);
   if (!parsed.ok) return { ok: false as const, status: 422, code: parsed.code, error: parsed.message };
 
   const nextState = currentFollowUpState(state, base, current, validated.data, parsed.value);

@@ -101,7 +101,13 @@ function extractRequestedJobText(text: string): string | null {
   const raw = forMatch?.[1] ?? reviewMatch?.[1];
   if (!raw) return null;
   const cleaned = raw.replace(/[.!?]+$/g, "").trim();
+  if (!forMatch && /^(?:the|these|those|all|the strongest|the best)$/i.test(cleaned)) return null;
   return cleaned ? cleaned.slice(0, 200) : null;
+}
+
+/** Whole references only: "this role at Acme" must not silently become the selected job. */
+function isContextualJobReference(value: string) {
+  return /^(?:this|the current|current|the selected|selected) (?:role|job|position)$/i.test(normalizeJobTitle(value));
 }
 
 export function parseRecruitingCommand(text: string): CommandParseResult {
@@ -161,20 +167,23 @@ function cleanFocus(value: string) {
   return value.replace(/[?.!]+$/g, "").replace(/^(?:the\s+)?(?:best|strongest)\s+/i, "").trim().slice(0, 120);
 }
 
-export function parseFollowUpCommand(text: string): FollowUpParseResult {
+export function parseFollowUpCommand(text: string, candidateCount?: number): FollowUpParseResult {
   const commandText = text.trim();
   if (!commandText) return { ok: false, code: "UNSUPPORTED_FOLLOW_UP", message: "Describe how you want to focus the current recruiting result." };
   if (consequentialPattern.test(commandText)) return { ok: false, code: "CONSEQUENTIAL_ACTION", message: "Consequential recruiting requests must go through RecruitOS's reviewed proposal flow. Unsupported actions remain blocked." };
   if (/\b(back to overview|show (?:the )?full shortlist|show all candidate details|full overview|overview)\b/i.test(commandText)) return { ok: true, value: { intent: "show_overview" }, requiresSemanticAnalysis: false };
-  if (/\b(concerns?|gaps?)\b/i.test(commandText) && /\b(show|only|biggest|what|list|focus)\b/i.test(commandText)) return { ok: true, value: { intent: "show_concerns" }, requiresSemanticAnalysis: false };
   if (/\bcompare\b/i.test(commandText)) {
     const explicit = commandText.match(/\b(?:top|first|strongest)?\s*(\d+)\b/i)?.[1];
     const firstTwo = /\b(first|top)\s+two\b/i.test(commandText);
     const strongest = /\bstrongest candidates?\b/i.test(commandText);
-    const count = explicit ? Number(explicit) : firstTwo ? 2 : strongest ? 3 : null;
+    const currentCandidates = /\bcompare\s+(?:(?:these|those|the current|the|current)\s+)?candidates\b/i.test(commandText);
+    const requestedJob = extractRequestedJobText(commandText);
+    const usesCurrentRole = !requestedJob || isContextualJobReference(requestedJob);
+    const count = explicit ? Number(explicit) : firstTwo ? 2 : strongest ? 3 : currentCandidates && usesCurrentRole && Number.isInteger(candidateCount) ? candidateCount : null;
     if (!count || count < 2 || count > 8) return { ok: false, code: "AMBIGUOUS_COMPARISON", message: "Choose between 2 and 8 candidates to compare, for example: Compare the top 3." };
     return { ok: true, value: { intent: "compare_candidates", count }, requiresSemanticAnalysis: false };
   }
+  if (/\b(concerns?|gaps?)\b/i.test(commandText) && /\b(show|only|biggest|what|list|focus)\b/i.test(commandText)) return { ok: true, value: { intent: "show_concerns" }, requiresSemanticAnalysis: false };
   const prioritize = commandText.match(/\b(?:focus more on|prioritize|put more emphasis on|emphasize)\s+(.+)/i);
   if (prioritize?.[1]) {
     const focus = cleanFocus(prioritize[1]);
@@ -192,14 +201,14 @@ export function resolveJobReference(jobs: JobReference[], requestedJobText: stri
   if (scopeJobId) {
     const scoped = jobs.find((job) => job.id === scopeJobId);
     if (!scoped) return { status: "not_found" };
-    if (requestedJobText) {
+    if (requestedJobText && !isContextualJobReference(requestedJobText)) {
       const requested = normalizeJobTitle(requestedJobText);
       const scopedTitle = normalizeJobTitle(scoped.title);
       if (requested && requested !== scopedTitle && !scopedTitle.includes(requested) && !requested.includes(scopedTitle)) return { status: "scope_conflict", job: scoped };
     }
     return { status: "resolved", job: scoped };
   }
-  if (!requestedJobText) return { status: "not_found" };
+  if (!requestedJobText || isContextualJobReference(requestedJobText)) return { status: "not_found" };
   const requested = normalizeJobTitle(requestedJobText);
   if (!requested) return { status: "not_found" };
   const exact = jobs.filter((job) => normalizeJobTitle(job.title) === requested);
