@@ -79,9 +79,8 @@ export default async function RecruitOSPage() {
         {jobsResult.error || reviewResult.error ? <div className="mb-5"><ErrorState>Some workspace context could not be loaded. <a href={baseHref} className="inline-flex min-h-11 items-center underline">Reload workspace</a></ErrorState></div> : null}
         {jobCount === 0 ? <section aria-labelledby="first-job-heading" className="command-surface px-5 py-6 sm:px-7">
           <h2 id="first-job-heading" className="font-display text-xl font-semibold leading-7 text-ink">Create your first job</h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-6 text-ink-dim">Add a job title and description, then upload candidate resumes. RecruitOS will help you review strengths, gaps, and match evidence for that role.</p>
+          <p className="mt-3 max-w-2xl text-[15px] leading-6 text-ink-dim">Start with the role you’re hiring for. Add the job title and requirements you’d normally use when reviewing candidates.</p>
           <Link href={`${baseHref}/jobs/new`} className="workspace-action mt-5">Create job <ArrowRight className="size-4" aria-hidden="true" /></Link>
-          <p className="mt-4 text-[13px] leading-5 text-ink-dim">Once your job is ready, use the interface for control or recruiting commands for speed. You approve candidate status changes.</p>
         </section> : <CommandComposer jobs={scopeJobs} contextJob={contextJob} />}
 
         <div className="mt-8 grid items-start gap-7 min-[1200px]:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
