@@ -63,3 +63,33 @@ The new tests invoke the real component handlers with controlled server response
 3. Compare two distinct analyzed candidates, inspect evidence, return to the role, and refresh.
 4. Prepare a status proposal using fictional candidates, cancel, then deliberately approve a new proposal and confirm only the reviewed changes apply.
 5. Check narrow-screen controls and then merge only after the remaining blocker is resolved.
+
+## Confirmed extraction contract fix
+
+Production diagnostics at 20:40:40 and 20:41:09 showed `experience.0`,
+`experience.1`, and `experience.2` failing validation: expected object, actual
+string. The JSON-mode request named top-level fields but never defined nested
+experience/education records. Its blanket null instruction also conflicted with
+required arrays. Recovery used this same extractor, so retry repeated the gap.
+
+The extractor now supplies a strict JSON schema for the existing
+`openai/gpt-oss-120b` model: required fields, no additional properties, structured
+experience/education entries, string skills, nullable scalars, and empty arrays
+for absent collections. Groq documents this model's strict-mode support at
+https://console.groq.com/docs/structured-outputs. The existing domain validator
+and deterministic normalization remain unchanged; arbitrary experience strings
+are still rejected. Refused and incomplete completions cannot become profiles.
+No persistence, ownership, usage, or human-review code changed.
+
+Seven extraction regression tests exercise the actual extractor with a mocked
+provider boundary: outgoing schema and valid records, the exact production
+string-array failure and sanitized diagnostics, unknown values, existing
+string-list description normalization, equivalent schema violations,
+empty/malformed/fenced/partial JSON, and truncated/refused responses.
+
+Live acceptance still requires the branch preview with the existing account:
+retry analysis of the saved fictional resumes for Junior AI Engineer; confirm
+candidate profiles and analyses exist, remain accessible after refresh, and
+successful entries leave the retry selection. Verify a single upload too because
+initial extraction and analysis recovery share the corrected extractor. Do not
+merge before this succeeds. Local tests do not substitute for the live provider.
