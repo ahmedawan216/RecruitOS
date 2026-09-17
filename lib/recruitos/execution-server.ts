@@ -1,5 +1,7 @@
 import "server-only";
 
+import { captureOutcome } from "@/lib/analytics/server";
+
 import { analyzeResume } from "@/app/actions/analyze-resume";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -429,6 +431,7 @@ async function compareStage(userId: string, execution: DbRow) {
     result: resultValidation.data,
     completed_at: new Date().toISOString(),
   });
+  await captureOutcome(userId, "command_completed", { command_type: "shortlist", candidate_count: ranked.length, partial: failed.size > 0 || ranked.length < Math.min(requestedCount, applicants.length) }, executionId);
   await appendEvent(userId, executionId, "completed", "Shortlist ready", { rankedCount: ranked.length });
 }
 

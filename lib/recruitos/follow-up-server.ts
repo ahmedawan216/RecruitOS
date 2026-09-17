@@ -1,5 +1,7 @@
 import "server-only";
 
+import { captureOutcome } from "@/lib/analytics/server";
+
 import OpenAI from "openai";
 import { z } from "zod";
 
@@ -276,6 +278,8 @@ export async function beginContextualFollowUp(executionId: string, input: unknow
   if (nextResult) {
     const updated = await updateOwnedExecution(user.id, executionId, { result: nextResult, stage, work_state: { ...nextState, phase2dPendingFollowUp: null }, error_code: null, error_message: null });
     await appendEvent(user.id, executionId, "completed", parsed.value.intent === "show_overview" ? "Full shortlist restored" : parsed.value.intent === "show_concerns" ? "Concerns view ready" : "Candidate comparison ready", { followUp: parsed.value.intent });
+    if (parsed.value.intent === "compare_candidates") await captureOutcome(user.id, "candidate_comparison_completed", { candidate_count: nextResult.candidates.length }, validated.data.idempotencyKey);
+    await captureOutcome(user.id, "command_completed", { command_type: parsed.value.intent, candidate_count: nextResult.candidates.length }, validated.data.idempotencyKey);
     return { ok: true as const, duplicate: false, execution: snapshot(updated), requiresWork: false };
   }
 
@@ -388,6 +392,7 @@ export async function advanceSemanticFollowUp(userId: string, execution: DbRow) 
       error_code: null,
       error_message: null,
     });
+    await captureOutcome(userId, "command_completed", { command_type: pending.data.intent, candidate_count: nextResult.candidates.length }, pending.data.idempotencyKey);
     await appendEvent(userId, executionId, "completed", pending.data.intent === "skill_focus" ? `Focused ${pending.data.focus} evidence ready` : `Analytical ${pending.data.focus} refocus ready`, { followUp: pending.data.intent });
   } catch (error) {
     console.error("RecruitOS bounded follow-up analysis failed:", error instanceof Error ? { message: error.message } : { message: "unknown" });

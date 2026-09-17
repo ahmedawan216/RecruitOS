@@ -1,5 +1,7 @@
 import "server-only";
 
+import { captureOutcome } from "@/lib/analytics/server";
+
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
@@ -357,6 +359,7 @@ export async function applyCandidateStatusProposal(executionId: string, input: u
       proposalId: validated.data.proposalId,
       duplicate: rpc.duplicate === true,
     }).catch(() => undefined);
+    if (rpc.duplicate !== true) await captureOutcome(user.id, "command_completed", { command_type: "candidate_status_change", candidate_count: proposal.data.changeCount }, validated.data.proposalId);
     return { ok: true as const, duplicate: rpc.duplicate === true, execution: snapshot(refreshed) };
   }
 

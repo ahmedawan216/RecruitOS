@@ -1,5 +1,7 @@
 "use server";
 
+import { captureOutcome } from "@/lib/analytics/server";
+
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractCandidateProfile } from "@/lib/recruitos/candidate-extraction";
@@ -267,6 +269,7 @@ export async function analyzeResume(resumeId: string, jobId: string): Promise<An
       return { success: false, error: "RecruitOS could not update the candidate workflow. Please retry the analysis." };
     }
 
+    await captureOutcome(user.id, "candidate_analysis_completed", { analysis_count: 1 }, analysisId);
     return { success: true, resumeId, jobId, analysisId, candidateId };
   } catch (error) {
     if (error instanceof Error && error.message === "AUTH_REQUIRED") {

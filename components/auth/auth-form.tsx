@@ -1,7 +1,8 @@
 "use client";
 
+import { captureClient } from "@/lib/analytics/client";
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { signIn, signUp, type AuthState } from "@/app/auth/actions";
@@ -19,6 +20,7 @@ function PasswordField({ id, name, label, autoComplete, describedBy, invalid }: 
 const initialState: AuthState = {};
 
 export function AuthForm({ mode, next = "/dashboard" }: { mode: "sign-in" | "sign-up"; next?: string }) {
+  const signupStarted = useRef(false);
   const action = mode === "sign-in" ? signIn : signUp;
   const [state, formAction] = useActionState(action, initialState);
   const messageId = state.error || state.success ? "auth-form-message" : undefined;
@@ -26,7 +28,7 @@ export function AuthForm({ mode, next = "/dashboard" }: { mode: "sign-in" | "sig
     ? `/sign-up?next=${encodeURIComponent(next)}`
     : `/sign-in?next=${encodeURIComponent(next)}`;
 
-  return <form action={formAction} className="space-y-5" noValidate={false}>
+  return <form onSubmit={() => { if (mode === "sign-up" && !signupStarted.current) { signupStarted.current = captureClient("signup_started"); } }} action={formAction} className="space-y-5" noValidate={false}>
     <input type="hidden" name="next" value={next} />
     <div><label htmlFor="email" className="mb-2 block text-sm font-medium text-ink">Work email</label><input id="email" name="email" type="email" autoComplete="email" required aria-invalid={Boolean(state.error) || undefined} aria-describedby={messageId} className="workspace-control" placeholder="you@company.com" /></div>
     <PasswordField id="password" name="password" label="Password" autoComplete={mode === "sign-in" ? "current-password" : "new-password"} describedBy={messageId ?? (mode === "sign-up" ? "password-guidance" : undefined)} invalid={Boolean(state.error)} />

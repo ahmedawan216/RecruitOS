@@ -3,6 +3,7 @@ import { IBM_Plex_Sans, Public_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PostHogProvider } from "@/components/providers/posthog-provider";
+import { getAuthenticatedUser } from "@/lib/supabase/auth";
 import { siteConfig } from "@/lib/site-config";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -77,7 +78,8 @@ export const viewport: Viewport = {
   colorScheme: "light",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const user = await getAuthenticatedUser();
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${publicSans.variable} ${ibmPlexSans.variable}`}>
       <body>
@@ -88,7 +90,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Skip to content
         </a>
         <Header />
-        <PostHogProvider>
+        <PostHogProvider userId={user?.id ?? null}>
           <div id="main-content">{children}</div>
         </PostHogProvider>
         <Footer />

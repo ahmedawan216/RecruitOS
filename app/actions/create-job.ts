@@ -1,5 +1,7 @@
 "use server";
 
+import { captureOutcome } from "@/lib/analytics/server";
+
 import type { PlanLimitReached } from "@/lib/recruitos/plan-limits";
 import { createJobWithinPlanLimit } from "@/lib/recruitos/usage-server";
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
@@ -29,6 +31,7 @@ export async function createJob(_prevState: CreateJobState, formData: FormData):
       return { success: false, error: result.limit.message, limit: result.limit };
     }
 
+    await captureOutcome(user.id, "job_created", { job_count: 1 }, result.jobId);
     return { success: true, jobId: result.jobId };
   } catch (error) {
     if (error instanceof Error && error.message === "AUTH_REQUIRED") {

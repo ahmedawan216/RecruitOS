@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
 
 const footerLinks = [
+  { label: "Analytics privacy", href: "/analytics-privacy" },
   { label: "Product", href: "/#product" },
   { label: "Human control", href: "/#human-control" },
   { label: "Sign in", href: "/sign-in" },

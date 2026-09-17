@@ -1,5 +1,7 @@
 "use server";
 
+import { captureOutcome } from "@/lib/analytics/server";
+
 import { requireAuthenticatedUser } from "@/lib/supabase/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { extractCandidateProfile } from "@/lib/recruitos/candidate-extraction";
@@ -161,6 +163,7 @@ export async function uploadResume(_prevState: UploadState, formData: FormData):
       if (activityError) console.error("Candidate activity insert error:", activityError);
     }
 
+    await captureOutcome(user.id, "resume_processed", { resume_count: 1, profile_created: Boolean(candidateId) }, resume.id);
     return {
       success: true,
       extractionStatus: "success",

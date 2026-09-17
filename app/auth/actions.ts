@@ -1,5 +1,7 @@
 "use server";
 
+import { captureOutcome } from "@/lib/analytics/server";
+
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -51,6 +53,11 @@ export async function signUp(_previousState: AuthState, formData: FormData): Pro
   });
 
   if (error) return { error: getUserFacingAuthErrorMessage(error, SIGN_UP_ERROR_FALLBACK) };
+
+  // An existing confirmed account may return an obfuscated user with no identities.
+  if (data.user && data.user.identities && data.user.identities.length > 0) {
+    await captureOutcome(data.user.id, "signup_completed", { confirmation_required: !data.session }, data.user.id);
+  }
 
   if (data.session) {
     setSessionCookies(cookieStore, data.session.access_token, data.session.refresh_token);
