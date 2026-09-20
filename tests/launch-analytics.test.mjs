@@ -148,3 +148,10 @@ test('standalone comparisons count rendered results once and respect consent/cou
   h.api.setAnalyticsConsent(false); h.api.recordComparison('b'.repeat(64),2,id);
   assert.equal(h.calls.filter(c=>c[1]==='candidate_comparison_completed').length,1);
 });
+
+test('SEO landing attribution allows only published pages and strips query data', () => {
+  for (const path of ['/resume-analysis', '/compare-candidates', '/guides/candidate-evaluation-template']) {
+    assert.deepEqual(schema.acquisition('https://recruitos.test' + path + '?candidate=private&email=secret', 'https://www.google.com/search?q=private'), {landing_page:path,referring_domain:'google.com'});
+  }
+  assert.equal(schema.safePage('/guides/private-candidate-name'), 'other');
+});

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { acquisitionPaths } from '@/lib/seo';
 import { CONSENT_COOKIE } from '@/lib/analytics/schema';
 import { captureClient, identifyRecruiter, readCookie, recordWorkspaceVisit, setAnalyticsConsent } from '@/lib/analytics/client';
 
@@ -17,7 +18,7 @@ export function PostHogProvider({ children, userId = null }: { children: React.R
   useEffect(() => {
     if (choice !== 'accepted') { lastPage.current = null; return; }
     identifyRecruiter(userId);
-    if (lastPage.current !== pathname && (pathname === '/' || pathname === '/recruitos')) captureClient('landing_page_viewed');
+    if (lastPage.current !== pathname && ((acquisitionPaths as readonly string[]).includes(pathname) || pathname === '/recruitos')) captureClient('landing_page_viewed');
     lastPage.current = pathname;
     const visit = () => { if (userId && pathname.startsWith('/dashboard') && document.visibilityState === 'visible') recordWorkspaceVisit(); };
     visit();

@@ -4,6 +4,10 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
 
 const footerLinks = [
+  { label: "Resume analysis", href: "/resume-analysis" },
+  { label: "Candidate comparison", href: "/compare-candidates" },
+  { label: "Evaluation template", href: "/guides/candidate-evaluation-template" },
+  { label: "About OperationOS", href: "https://operationos.org/about" },
   { label: "Analytics privacy", href: "/analytics-privacy" },
   { label: "Product", href: "/#product" },
   { label: "Human control", href: "/#human-control" },

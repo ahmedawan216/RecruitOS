@@ -6,8 +6,10 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
   },
+  async redirects() { return [{ source: "/recruitos", destination: "/", permanent: true }]; },
   async headers() {
     return [
+      ...["/dashboard/:path*", "/sign-in", "/sign-up", "/checkout/:path*", "/upload", "/auth/:path*", "/api/:path*"].map(source => ({ source, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] })),
       {
         source: "/:path*",
         headers: [
