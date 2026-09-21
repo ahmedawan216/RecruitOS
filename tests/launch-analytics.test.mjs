@@ -150,7 +150,7 @@ test('standalone comparisons count rendered results once and respect consent/cou
 });
 
 test('SEO landing attribution allows only published pages and strips query data', () => {
-  for (const path of ['/resume-analysis', '/compare-candidates', '/guides/candidate-evaluation-template']) {
+  for (const path of ['/resume-analysis', '/compare-candidates', '/guides/candidate-evaluation-template', '/guides/resume-screening-checklist']) {
     assert.deepEqual(schema.acquisition('https://recruitos.test' + path + '?candidate=private&email=secret', 'https://www.google.com/search?q=private'), {landing_page:path,referring_domain:'google.com'});
   }
   assert.equal(schema.safePage('/guides/private-candidate-name'), 'other');

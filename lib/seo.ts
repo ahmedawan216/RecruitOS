@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 export const publicOrigin = "https://recruitos.operationos.org";
-export const acquisitionPaths = ["/", "/resume-analysis", "/compare-candidates", "/guides/candidate-evaluation-template"] as const;
+export const acquisitionPaths = ["/", "/resume-analysis", "/compare-candidates", "/guides/candidate-evaluation-template", "/guides/resume-screening-checklist"] as const;
 export function publicMetadata(title: string, description: string, path: string): Metadata {
   return { title: { absolute: `${title} | RecruitOS` }, description,
     alternates: { canonical: `${publicOrigin}${path}` },

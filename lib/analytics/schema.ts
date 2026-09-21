@@ -15,7 +15,7 @@ export const utmValues = {
   utm_term: ['recruiting-software', 'resume-screening', 'candidate-analysis', 'recruitos'],
 } as const;
 const domains = ['linkedin.com', 'facebook.com', 'google.com', 'bing.com', 't.co', 'reddit.com'];
-const pages = ['/resume-analysis', '/compare-candidates', '/guides/candidate-evaluation-template', '/', '/recruitos', '/sign-up', '/sign-in', '/pricing', '/dashboard', '/upload', '/analytics-privacy', 'other'];
+const pages = ['/resume-analysis', '/compare-candidates', '/guides/candidate-evaluation-template', '/guides/resume-screening-checklist', '/', '/recruitos', '/sign-up', '/sign-in', '/pricing', '/dashboard', '/upload', '/analytics-privacy', 'other'];
 export function safePage(path: string) { return pages.includes(path) ? path : path.startsWith('/dashboard/') ? '/dashboard' : 'other'; }
 export function safeId(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value); }
 export function safeAttribution(input: unknown): SafeProperties {

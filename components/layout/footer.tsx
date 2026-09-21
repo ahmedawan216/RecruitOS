@@ -5,6 +5,7 @@ import { Logo } from "@/components/ui/logo";
 
 const footerLinks = [
   { label: "Resume analysis", href: "/resume-analysis" },
+  { label: "Screening checklist", href: "/guides/resume-screening-checklist" },
   { label: "Candidate comparison", href: "/compare-candidates" },
   { label: "Evaluation template", href: "/guides/candidate-evaluation-template" },
   { label: "About OperationOS", href: "https://operationos.org/about" },
